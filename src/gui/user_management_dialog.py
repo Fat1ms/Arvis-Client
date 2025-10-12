@@ -422,19 +422,38 @@ class UserManagementDialog(QDialog):
     def load_users(self):
         """Load users from database"""
         try:
-            # Получаем пользователей: сначала удалённо, потом локально
+            # Получаем пользователей ТОЛЬКО с сервера (если доступен)
             remote_users = []
+            use_server = False
+            
             try:
-                client = RemoteAuthClient.get()
-                if client.is_authenticated():
-                    ok, data = client.list_users()
-                    if ok and isinstance(data, list):
-                        remote_users = data
-            except Exception:
-                remote_users = []
+                # Пробуем через Client API
+                if hasattr(self.auth_manager, "client_api") and self.auth_manager.client_api:
+                    client_api = self.auth_manager.client_api
+                    if client_api.is_authenticated():
+                        ok, data = client_api.admin_list_users()
+                        if ok and isinstance(data, list):
+                            remote_users = data
+                            use_server = True
+                            self.logger.info(f"✓ Loaded {len(remote_users)} users from server (Client API)")
+            except Exception as e:
+                self.logger.warning(f"Client API unavailable: {e}")
+            
+            # Fallback на RemoteAuthClient (старый API)
+            if not use_server:
+                try:
+                    client = RemoteAuthClient.get()
+                    if client.is_authenticated():
+                        ok, data = client.list_users()
+                        if ok and isinstance(data, list):
+                            remote_users = data
+                            use_server = True
+                            self.logger.info(f"✓ Loaded {len(remote_users)} users from server (Admin API)")
+                except Exception as e:
+                    self.logger.warning(f"Admin API unavailable: {e}")
 
-            if remote_users:
-                # Для удалённых пользователей таблица ожидает объекты с атрибутами, создадим лёгкие объекты
+            if use_server and remote_users:
+                # Используем ТОЛЬКО серверных пользователей
                 class RUser:
                     def __init__(self, d):
                         from utils.security.rbac import Role as RoleEnum
@@ -447,13 +466,22 @@ class UserManagementDialog(QDialog):
                         self.totp_secret = None
                         self.last_login = d.get("last_login")
                 users = [RUser(u) for u in remote_users]
+                self.logger.info("→ Using server users list (local users ignored)")
             else:
-                # Локальный список (через гибридный менеджер или напрямую из локального AuthManager)
+                # Сервер недоступен - показываем локальных пользователей с предупреждением
                 if hasattr(self.auth_manager, "local_auth") and self.auth_manager.local_auth:
                     users = self.auth_manager.local_auth.list_users()
                 else:
                     from utils.security.auth import AuthManager as _LocalAuth
                     users = _LocalAuth({}).list_users()
+                
+                self.logger.warning("⚠ Server unavailable - showing local users only")
+                QMessageBox.warning(
+                    self,
+                    _("Работа в автономном режиме"),
+                    _("Сервер недоступен.\n\nПоказаны только локальные пользователи.\n"
+                      "Изменения будут сохранены локально и не синхронизируются с сервером.")
+                )
 
             self.users_table.setRowCount(0)
             self.all_users = users  # Store for filtering
@@ -692,14 +720,25 @@ class UserManagementDialog(QDialog):
                 else:
                     err = resp.get("error") if isinstance(resp, dict) else None
                     QMessageBox.warning(self, _("Ошибка"), err or _("Не удалось создать пользователя"))
-        except Exception:
-            pass
+                    return
+        except Exception as e:
+            self.logger.warning(f"Admin API create failed: {e}")
 
-        # Local fallback registration dialog
-        from .login_dialog import CreateAccountDialog
-        dialog = CreateAccountDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            self.load_users(); self.user_updated.emit()
+        # Fallback: локальное создание с предупреждением
+        reply = QMessageBox.question(
+            self,
+            _("Работа в автономном режиме"),
+            _("Сервер недоступен.\n\nСоздать пользователя локально?\n"
+              "(Не будет синхронизирован с сервером)"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            from .login_dialog import CreateAccountDialog
+            dialog = CreateAccountDialog(self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_users(); self.user_updated.emit()
 
     def edit_user_role(self, user):
         """Edit user role"""
@@ -737,18 +776,40 @@ class UserManagementDialog(QDialog):
             try:
                 # Update role
                 user.role = new_role
-                # Смена роли: пробуем на сервере, затем локально
+                server_updated = False
+                
+                # Пробуем обновить на сервере через Client API
                 try:
-                    client = RemoteAuthClient.get()
-                    if client.is_authenticated():
-                        client.update_user(user.user_id, role=new_role.value)
-                except Exception:
-                    pass
-                try:
+                    if hasattr(self.auth_manager, "client_api") and self.auth_manager.client_api:
+                        client_api = self.auth_manager.client_api
+                        if client_api.is_authenticated():
+                            ok, _ = client_api.admin_update_user(user.user_id, role=new_role.value)
+                            if ok:
+                                server_updated = True
+                                self.logger.info(f"✓ Role updated on server (Client API): {user.username}")
+                except Exception as e:
+                    self.logger.warning(f"Client API update failed: {e}")
+                
+                # Fallback на Admin API
+                if not server_updated:
+                    try:
+                        client = RemoteAuthClient.get()
+                        if client.is_authenticated():
+                            ok, _ = client.update_user(user.user_id, role=new_role.value)
+                            if ok:
+                                server_updated = True
+                                self.logger.info(f"✓ Role updated on server (Admin API): {user.username}")
+                    except Exception as e:
+                        self.logger.warning(f"Admin API update failed: {e}")
+                
+                # Локальное обновление (только если сервер недоступен)
+                if not server_updated:
+                    try:
                         if hasattr(self.auth_manager, "local_auth") and self.auth_manager.local_auth:
                             self.auth_manager.local_auth.update_user(user.user_id, role=new_role.value)
-                except Exception:
-                    pass
+                            self.logger.warning("⚠ Role updated locally (server unavailable)")
+                    except Exception as e:
+                        self.logger.error(f"Local update failed: {e}")
 
                 # Audit log
                 self.audit_logger.log_event(
@@ -789,17 +850,37 @@ class UserManagementDialog(QDialog):
             try:
                 # Деактивация: на сервере и локально
                 user.is_active = False
+                server_updated = False
+                
+                # Пробуем через Client API
                 try:
-                    client = RemoteAuthClient.get()
-                    if client.is_authenticated():
-                        client.update_user(user.user_id, is_active=False)
+                    if hasattr(self.auth_manager, "client_api") and self.auth_manager.client_api:
+                        client_api = self.auth_manager.client_api
+                        if client_api.is_authenticated():
+                            ok, _ = client_api.admin_update_user(user.user_id, is_active=False)
+                            if ok:
+                                server_updated = True
                 except Exception:
                     pass
-                try:
+                
+                # Fallback на Admin API
+                if not server_updated:
+                    try:
+                        client = RemoteAuthClient.get()
+                        if client.is_authenticated():
+                            ok, _ = client.update_user(user.user_id, is_active=False)
+                            if ok:
+                                server_updated = True
+                    except Exception:
+                        pass
+                
+                # Локально (если сервер недоступен)
+                if not server_updated:
+                    try:
                         if hasattr(self.auth_manager, "local_auth") and self.auth_manager.local_auth:
                             self.auth_manager.local_auth.update_user(user.user_id, is_active=False)
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
 
                 # Audit log
                 self.audit_logger.log_event(
@@ -826,17 +907,37 @@ class UserManagementDialog(QDialog):
         try:
             # Активация
             user.is_active = True
+            server_updated = False
+            
+            # Пробуем через Client API
             try:
-                client = RemoteAuthClient.get()
-                if client.is_authenticated():
-                    client.update_user(user.user_id, is_active=True)
+                if hasattr(self.auth_manager, "client_api") and self.auth_manager.client_api:
+                    client_api = self.auth_manager.client_api
+                    if client_api.is_authenticated():
+                        ok, _ = client_api.admin_update_user(user.user_id, is_active=True)
+                        if ok:
+                            server_updated = True
             except Exception:
                 pass
-            try:
+            
+            # Fallback на Admin API
+            if not server_updated:
+                try:
+                    client = RemoteAuthClient.get()
+                    if client.is_authenticated():
+                        ok, _ = client.update_user(user.user_id, is_active=True)
+                        if ok:
+                            server_updated = True
+                except Exception:
+                    pass
+            
+            # Локально (если сервер недоступен)
+            if not server_updated:
+                try:
                     if hasattr(self.auth_manager, "local_auth") and self.auth_manager.local_auth:
                         self.auth_manager.local_auth.update_user(user.user_id, is_active=True)
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
             # Audit log
             self.audit_logger.log_event(
@@ -876,17 +977,35 @@ class UserManagementDialog(QDialog):
         if reply == QMessageBox.Yes:
             try:
                 # Удаление пользователя
+                server_deleted = False
+                
+                # Пробуем через Client API
                 try:
-                    client = RemoteAuthClient.get()
-                    if client.is_authenticated():
-                        client.delete_user(user.user_id)
+                    if hasattr(self.auth_manager, "client_api") and self.auth_manager.client_api:
+                        client_api = self.auth_manager.client_api
+                        if client_api.is_authenticated():
+                            if client_api.admin_delete_user(user.user_id):
+                                server_deleted = True
                 except Exception:
                     pass
-                try:
+                
+                # Fallback на Admin API
+                if not server_deleted:
+                    try:
+                        client = RemoteAuthClient.get()
+                        if client.is_authenticated():
+                            if client.delete_user(user.user_id):
+                                server_deleted = True
+                    except Exception:
+                        pass
+                
+                # Локально (если сервер недоступен)
+                if not server_deleted:
+                    try:
                         if hasattr(self.auth_manager, "local_auth") and self.auth_manager.local_auth:
                             self.auth_manager.local_auth.delete_user(user.user_id)
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
 
                 # Audit log
                 self.audit_logger.log_event(

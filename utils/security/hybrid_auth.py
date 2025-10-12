@@ -3,428 +3,228 @@ Hybrid Authentication Manager
 Гибридный менеджер аутентификации (локальная + удаленная)
 """
 
+from datetime import datetime
 from typing import Optional, Tuple
 
+from config.config import Config
 from utils.logger import ModuleLogger
 from utils.security.auth import AuthManager as LocalAuthManager
 from utils.security.auth import User
+from utils.security.client_api import ArvisClientAPI, get_client_api
 from utils.security.rbac import Role
-from utils.security.remote_auth_client import RemoteAuthClient
 
 
 class HybridAuthManager:
     """
-    Hybrid authentication manager that supports both local and remote authentication
-    Supports fallback to local auth if remote server is unavailable
+    Гибридный менеджер аутентификации, который поддерживает как локальную,
+    так и удаленную аутентификацию с возможностью отката к локальной,
+    если удаленный сервер недоступен.
     """
 
-    def __init__(self, config=None, use_remote: bool = True):
+    def __init__(self, config: Optional[Config] = None):
         """
-        Initialize hybrid auth manager
+        Инициализация гибридного менеджера аутентификации.
 
         Args:
-            config: Configuration dict
-            use_remote: Enable remote authentication (True by default)
+            config: Объект конфигурации.
         """
         self.logger = ModuleLogger("HybridAuthManager")
-        self.config = config or {}
+        self.config = config or Config()
 
-        # Initialize local auth manager (always available as fallback)
-        self.local_auth = LocalAuthManager(config)
+        self.use_remote = self.config.get("security.auth.use_remote_server", False)
+        self.strict_server_mode = self.config.get("security.auth.strict_server_mode", False)
 
-        # Initialize remote auth client
-        self.use_remote = use_remote and self.config.get("auth.use_remote_server", False)
-        self.remote_client: Optional[RemoteAuthClient] = None
+        self.client_api: Optional[ArvisClientAPI] = None
+        self.local_auth: Optional[LocalAuthManager] = None
 
         if self.use_remote:
-            server_url = self.config.get("auth.remote_server_url", "")
-            if server_url:
-                try:
-                    self.remote_client = RemoteAuthClient(server_url, timeout=10)
-                    # Test connection
-                    if self.remote_client.health_check():
-                        self.logger.info(f"✓ Connected to remote auth server: {server_url}")
-                    else:
-                        self.logger.warning(f"⚠ Remote auth server unreachable: {server_url}")
-                        self.logger.warning("→ Falling back to local authentication")
-                        self.remote_client = None
-                except Exception as e:
-                    self.logger.error(f"Failed to initialize remote auth client: {e}")
-                    self.logger.warning("→ Falling back to local authentication")
-                    self.remote_client = None
+            self.client_api = get_client_api(self.config)
+            if self.client_api:
+                if self.client_api.check_connection():
+                    self.logger.info("✓ Remote authentication is active.")
+                else:
+                    self.logger.warning("⚠ Remote server is configured but unreachable.")
+                    if self.strict_server_mode:
+                        self.logger.error("✗ CRITICAL: Strict server mode is ON, but the server is unavailable.")
+                        raise ConnectionError("Server unavailable in strict mode.")
+                    self.logger.info("→ Falling back to local authentication mode.")
+                    self.client_api = None # Отключаем API, если сервер недоступен
             else:
-                self.logger.info("Remote auth server URL not configured, using local auth")
+                self.logger.warning("⚠ Remote authentication is enabled in config, but client API could not be initialized.")
 
-        # Current user
+        if not self.strict_server_mode:
+            self.local_auth = LocalAuthManager(self.config)
+            self.logger.info("Local authentication is available as a fallback.")
+        else:
+            self.logger.info("Strict server mode is ON: local authentication is disabled.")
+
         self.current_user: Optional[User] = None
 
     def authenticate(
         self, username: str, password: str, totp_code: Optional[str] = None
     ) -> Tuple[bool, Optional[str], Optional[User]]:
         """
-        Authenticate user (tries remote first, falls back to local)
+        Аутентифицирует пользователя. Сначала пытается через удаленный сервер,
+        затем, если не удалось, через локальную базу данных.
 
         Args:
-            username: Username
-            password: Password
-            totp_code: Optional 2FA code
+            username: Имя пользователя.
+            password: Пароль.
+            totp_code: Код двухфакторной аутентификации (пока не используется).
 
         Returns:
-            Tuple of (success, error_message, user)
+            Кортеж (успех, сообщение_об_ошибке, объект_пользователя).
         """
-        # Try remote authentication first
-        if self.remote_client:
+        # 1. Попытка удаленной аутентификации
+        if self.client_api:
             try:
-                success, response = self.remote_client.login(username, password, device_name="Arvis Desktop")
-
-                if success:
-                    # Check if 2FA is required
-                    if response.get("require_2fa"):
-                        return False, "2FA required", None
-
-                    # Convert remote response to local User object
-                    user = self._create_user_from_remote(response)
+                result = self.client_api.login(username, password)
+                if result.get("success"):
+                    user_data = result.get("user", {})
+                    user = self._create_user_from_api(user_data)
                     self.current_user = user
-                    self.logger.info(f"✓ Remote authentication successful: {username}")
+                    self.logger.info(f"✓ Remote authentication successful for '{username}'.")
                     return True, None, user
-
-                # Remote auth failed, try local
-                self.logger.warning(f"Remote authentication failed: {response.get('error', 'Unknown error')}")
-                self.logger.info("→ Trying local authentication...")
+                
+                error_msg = result.get("detail", "Invalid credentials.")
+                self.logger.warning(f"Remote authentication failed for '{username}': {error_msg}")
+                # Если строгий режим, не пытаемся использовать локальную аутентификацию
+                if self.strict_server_mode:
+                    return False, error_msg, None
+                self.logger.info("→ Falling back to local authentication.")
 
             except Exception as e:
-                self.logger.error(f"Remote authentication error: {e}")
-                self.logger.info("→ Falling back to local authentication")
+                self.logger.error(f"An error occurred during remote authentication: {e}")
+                if self.strict_server_mode:
+                    return False, "A server error occurred.", None
+                self.logger.info("→ Falling back to local authentication.")
 
-        # Use local authentication
+        # 2. Попытка локальной аутентификации (если не строгий режим)
+        if not self.local_auth:
+            return False, "Server unavailable and local authentication is disabled.", None
+
         try:
             session = self.local_auth.authenticate(username, password)
-            
             if session:
-                # Get user from session
                 user = self.local_auth.get_user_by_id(session.user_id)
                 if user:
                     self.current_user = user
-                    self.logger.info(f"✓ Local authentication successful: {username}")
+                    self.logger.info(f"✓ Local authentication successful for '{username}'.")
                     return True, None, user
-                else:
-                    self.logger.error(f"User not found for session: {session.user_id}")
-                    return False, "User not found", None
-            else:
-                self.logger.warning(f"Local authentication failed: Invalid credentials")
-                return False, "Invalid username or password", None
-                
+                return False, "User not found for the created session.", None
+            
+            return False, "Invalid username or password.", None
+
         except PermissionError as e:
-            # Account locked
-            self.logger.warning(f"Local authentication failed: {e}")
+            self.logger.warning(f"Local authentication failed for '{username}': {e}")
             return False, str(e), None
         except Exception as e:
-            self.logger.error(f"Local authentication error: {e}")
+            self.logger.error(f"An unexpected error occurred during local authentication: {e}")
             return False, str(e), None
-
-    def guest_login(self) -> Tuple[bool, Optional[str], Optional[User]]:
-        """
-        Login as guest (tries remote first, falls back to local)
-
-        Returns:
-            Tuple of (success, error_message, user)
-        """
-        # Try remote guest login first
-        if self.remote_client:
-            try:
-                success, response = self.remote_client.guest_login()
-
-                if success:
-                    user = self._create_user_from_remote(response)
-                    self.current_user = user
-                    self.logger.info("✓ Remote guest login successful")
-                    return True, None, user
-
-                self.logger.warning(f"Remote guest login failed: {response.get('error', 'Unknown error')}")
-                self.logger.info("→ Trying local guest login...")
-
-            except Exception as e:
-                self.logger.error(f"Remote guest login error: {e}")
-                self.logger.info("→ Falling back to local guest login")
-
-        # Use local guest login
-        result = self.local_auth.guest_login()
-
-        if result[0]:
-            self.current_user = result[2]
-            self.logger.info("✓ Local guest login successful")
-
-        return result
 
     def logout(self) -> bool:
-        """
-        Logout current user
-
-        Returns:
-            Success status
-        """
-        # Logout from remote server
-        if self.remote_client and self.remote_client.is_authenticated():
-            try:
-                self.remote_client.logout()
-                self.logger.info("✓ Remote logout successful")
-            except Exception as e:
-                self.logger.error(f"Remote logout error: {e}")
-
-        # Logout from local
-        if self.current_user:
+        """Выход текущего пользователя из системы."""
+        if self.client_api and self.client_api.is_logged_in():
+            self.client_api.logout()
+        
+        if self.current_user and self.local_auth:
             self.local_auth.logout(self.current_user.user_id)
-            self.current_user = None
-            self.logger.info("✓ Local logout successful")
 
+        self.current_user = None
+        self.logger.info("✓ User logged out, local and remote sessions cleared.")
         return True
 
-    def check_permission(self, user: User, permission: str) -> bool:
+    def create_user(self, username: str, password: str, email: str = "", role: str = "user") -> Tuple[bool, str]:
         """
-        Check if user has permission (tries remote first, falls back to local)
-
-        Args:
-            user: User object
-            permission: Permission string (e.g., "module.weather")
-
-        Returns:
-            True if user has permission
+        Создает нового пользователя. В гибридном режиме создание возможно только через сервер.
+        В локальном режиме - локально.
         """
-        # Try remote permission check first
-        if self.remote_client and self.remote_client.is_authenticated():
+        # 1. Попытка создания через сервер
+        if self.client_api:
+            self.logger.info(f"Attempting to register user '{username}' on the server.")
+            # Используем обновлённый API с email как optional
+            result = self.client_api.register(username, password, email if email else None)
+            if result.get("success"):
+                user_id = result.get('user_id', 'N/A')
+                self.logger.info(f"✓ User '{username}' (ID: {user_id}) registered successfully on the server.")
+                return True, f"User '{username}' created successfully."
+            
+            error_msg = result.get("detail", "Server registration failed.")
+            self.logger.error(f"✗ Failed to register user on server: {error_msg}")
+            return False, error_msg
+
+        # 2. Попытка создания локально (если разрешено)
+        if self.local_auth:
+            self.logger.info(f"Server not available. Attempting to create user '{username}' locally.")
             try:
-                allowed = self.remote_client.check_permission(permission)
-                self.logger.debug(f"Remote permission check: {permission} = {allowed}")
-                return allowed
+                role_enum = Role[role.upper()]
+                # The create_user method in local_auth does not take email as an argument.
+                user = self.local_auth.create_user(username, password, role_enum)
+                if user:
+                    self.logger.info(f"✓ User '{username}' created locally.")
+                    # We might want to update the email separately if the local_auth manager supports it.
+                    # self.local_auth.update_user(user.user_id, email=email)
+                    return True, f"User '{username}' created locally."
+                return False, "Failed to create user locally."
             except Exception as e:
-                self.logger.error(f"Remote permission check error: {e}")
-                self.logger.info("→ Falling back to local permission check")
+                self.logger.error(f"Error creating user locally: {e}")
+                return False, str(e)
 
-        # Use local RBAC
-        from utils.security.rbac import get_rbac_manager
-
-        rbac = get_rbac_manager()
-        allowed = rbac.check_permission(user.role, permission)
-        self.logger.debug(f"Local permission check: {permission} = {allowed}")
-        return allowed
-
-    def _create_user_from_remote(self, remote_data: dict) -> User:
-        """
-        Create User object from remote authentication response
-
-        Args:
-            remote_data: Response from remote server
-
-        Returns:
-            User object
-        """
-        from datetime import datetime
-
-        role_str = remote_data.get("role", "user")
-        role = Role[role_str.upper()] if hasattr(Role, role_str.upper()) else Role.USER
-
-        user = User(
-            user_id=remote_data.get("user_id", "remote_user"),
-            username=remote_data.get("username", "Unknown"),
-            role=role,
-            password_hash="",  # Not needed for remote auth
-            salt="",  # Not needed for remote auth
-            created_at=datetime.utcnow(),
-            last_login=datetime.utcnow(),
-            is_active=True,
-            require_2fa=False,
-        )
-
-        return user
+        return False, "No authentication method available to create a user."
 
     def get_current_user(self) -> Optional[User]:
-        """Get current authenticated user"""
+        """Возвращает текущего аутентифицированного пользователя."""
+        # Если есть удаленный клиент, попробуем обновить инфо о пользователе
+        if self.client_api and self.client_api.is_logged_in():
+            api_user_info = self.client_api.get_current_user()
+            if api_user_info:
+                self.current_user = self._create_user_from_api(api_user_info)
         return self.current_user
 
-    def is_remote_auth_active(self) -> bool:
-        """Check if remote authentication is active"""
-        return self.remote_client is not None and self.remote_client.is_authenticated()
-
-    def create_user(self, username: str, password: str, email: Optional[str] = None, role: str = "user") -> Optional[User]:
+    def _create_user_from_api(self, api_data: dict) -> User:
         """
-        Create new user (tries remote first, falls back to local)
-
-        Args:
-            username: Username
-            password: Password
-            email: Optional email
-            role: User role (guest, user, power_user, admin)
-
-        Returns:
-            Created User object or None
+        Создает объект User из данных, полученных от API.
         """
-        # Try remote creation first
-        if self.remote_client and self.remote_client.is_authenticated():
-            try:
-                success, response = self.remote_client.create_user(username, password, email, role)
-
-                if success and response:
-                    # Convert response to User object
-                    user = self._create_user_from_remote(response)
-                    self.logger.info(f"✓ User created on remote server: {username}")
-                    return user
-
-                error = response.get("error", "Unknown error") if response else "No response"
-                self.logger.warning(f"Remote user creation failed: {error}")
-                
-                # If error is authentication-related, fall back to local
-                if "Authentication required" in str(error) or "Admin access required" in str(error):
-                    self.logger.info("→ Admin rights required on remote server, trying local creation...")
-                else:
-                    self.logger.info("→ Falling back to local user creation")
-
-            except Exception as e:
-                self.logger.error(f"Remote user creation error: {e}")
-                self.logger.info("→ Falling back to local user creation")
-
-        # Use local user creation
+        role_str = api_data.get("role", "user")
         try:
-            # Convert string role to Role enum
-            from utils.security.rbac import Role as RoleEnum
-            role_enum = RoleEnum[role.upper()] if hasattr(RoleEnum, role.upper()) else RoleEnum.USER
-            
-            user = self.local_auth.create_user(username, password, role_enum)
-            
-            if user:
-                self.logger.info(f"✓ User created locally: {username}")
-                return user
+            # На сервере может быть is_admin, а не role
+            if api_data.get('is_admin'):
+                role = Role.ADMIN
             else:
-                self.logger.error("Local user creation failed")
-                return None
+                role = Role[role_str.upper()]
+        except KeyError:
+            self.logger.warning(f"Unknown role '{role_str}' from server. Defaulting to USER.")
+            role = Role.USER
 
-        except Exception as e:
-            self.logger.error(f"Local user creation error: {e}")
-            return None
-
-    def list_users(self) -> list:
-        """
-        Get list of all users (tries remote first, falls back to local)
-
-        Returns:
-            List of users
-        """
-        # Try remote list first
-        if self.remote_client and self.remote_client.is_authenticated():
+        # Преобразование created_at в datetime, если возможно
+        created_at_str = api_data.get("created_at")
+        if created_at_str:
             try:
-                success, users = self.remote_client.list_users()
+                # Попытка распарсить дату в формате ISO
+                created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                created_at = datetime.utcnow()
+        else:
+            created_at = datetime.utcnow()
 
-                if success and users:
-                    self.logger.info(f"✓ Retrieved {len(users)} users from remote server")
-                    return users
-
-                self.logger.warning("Remote user list failed, falling back to local")
-
-            except Exception as e:
-                self.logger.error(f"Remote user list error: {e}")
-                self.logger.info("→ Falling back to local user list")
-
-        # Use local user list
-        try:
-            users = self.local_auth.list_users()
-            self.logger.info(f"✓ Retrieved {len(users)} users locally")
-            return users
-
-        except Exception as e:
-            self.logger.error(f"Local user list error: {e}")
-            return []
-
-    def get_user(self, user_id: str) -> Optional[User]:
-        """
-        Get user by ID (tries remote first, falls back to local)
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            User object or None
-        """
-        # Try remote get first
-        if self.remote_client and self.remote_client.is_authenticated():
-            try:
-                success, user_data = self.remote_client.get_user(user_id)
-
-                if success and user_data:
-                    user = self._create_user_from_remote(user_data)
-                    return user
-
-            except Exception as e:
-                self.logger.error(f"Remote get user error: {e}")
-
-        # Use local get
-        return self.local_auth.get_user_by_id(user_id)
-
-    def update_user(self, user_id: str, **kwargs) -> bool:
-        """
-        Update user (tries remote first, falls back to local)
-
-        Args:
-            user_id: User ID
-            **kwargs: Fields to update (email, role, is_active)
-
-        Returns:
-            Success status
-        """
-        # Try remote update first
-        if self.remote_client and self.remote_client.is_authenticated():
-            try:
-                success, _ = self.remote_client.update_user(
-                    user_id,
-                    email=kwargs.get("email"),
-                    role=kwargs.get("role"),
-                    is_active=kwargs.get("is_active")
-                )
-
-                if success:
-                    self.logger.info(f"✓ User updated on remote server: {user_id}")
-                    return True
-
-                self.logger.warning("Remote user update failed, falling back to local")
-
-            except Exception as e:
-                self.logger.error(f"Remote user update error: {e}")
-
-        # Use local update
-        return self.local_auth.update_user(user_id, **kwargs)
-
-    def delete_user(self, user_id: str) -> bool:
-        """
-        Delete user (tries remote first, falls back to local)
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Success status
-        """
-        # Try remote delete first
-        if self.remote_client and self.remote_client.is_authenticated():
-            try:
-                success = self.remote_client.delete_user(user_id)
-
-                if success:
-                    self.logger.info(f"✓ User deleted on remote server: {user_id}")
-                    return True
-
-                self.logger.warning("Remote user delete failed, falling back to local")
-
-            except Exception as e:
-                self.logger.error(f"Remote user delete error: {e}")
-
-        # Use local delete
-        return self.local_auth.delete_user(user_id)
-
+        return User(
+            user_id=api_data.get("user_id", "remote_user"),
+            username=api_data.get("username", "Unknown"),
+            role=role,
+            is_active=api_data.get("is_active", True),
+            password_hash="",  # Пароль не хранится для удаленных пользователей
+            salt="",
+            created_at=created_at,
+            last_login=datetime.utcnow(),
+            require_2fa=False, # 2FA пока не поддерживается в этой логике
+        )
 
 # Global instance
-_hybrid_auth_manager = None
+_hybrid_auth_manager: Optional[HybridAuthManager] = None
 
 
-def get_hybrid_auth_manager(config=None) -> HybridAuthManager:
-    """Get or create global hybrid auth manager instance"""
+def get_hybrid_auth_manager(config: Optional[Config] = None) -> HybridAuthManager:
+    """Возвращает или создает глобальный экземпляр HybridAuthManager."""
     global _hybrid_auth_manager
     if _hybrid_auth_manager is None:
         _hybrid_auth_manager = HybridAuthManager(config)

@@ -23,6 +23,8 @@ from PyQt5.QtWidgets import (
 from i18n import _
 from utils.logger import ModuleLogger
 from utils.security import Role, UserStorage, get_auth_manager
+from utils.security.hybrid_auth import HybridAuthManager
+from config.config import Config
 
 
 class LoginDialog(QDialog):
@@ -34,7 +36,9 @@ class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = ModuleLogger("LoginDialog")
-        self.auth_manager = get_auth_manager()
+        # Используем HybridAuthManager для поддержки удалённого сервера
+        config = Config()
+        self.auth_manager = HybridAuthManager(config)
         self.init_ui()
 
     def init_ui(self):
@@ -318,10 +322,10 @@ class LoginDialog(QDialog):
             return
 
         try:
-            # Authenticate
-            user = self.auth_manager.authenticate(username, password)
+            # Authenticate using HybridAuthManager (returns tuple)
+            success, error, user = self.auth_manager.authenticate(username, password)
 
-            if user:
+            if success and user:
                 self.logger.info(f"User authenticated: {username}")
 
                 # Check if 2FA is enabled (Phase 2 Day 5)
@@ -339,11 +343,8 @@ class LoginDialog(QDialog):
                         # 2FA verified, proceed with login
                         self.logger.info(f"2FA verification successful for user: {username}")
 
-                        # Create session
-                        session = self.auth_manager.create_session(
-                            user.user_id, persistent=self.remember_checkbox.isChecked()
-                        )
-
+                        # Session managed by HybridAuthManager internally
+                        
                         # Emit success signal
                         self.login_successful.emit(user.user_id, username)
                         self.accept()
@@ -354,17 +355,15 @@ class LoginDialog(QDialog):
                         self.password_input.setFocus()
                 else:
                     # No 2FA, direct login (existing flow)
-                    # Create session
-                    session = self.auth_manager.create_session(
-                        user.user_id, persistent=self.remember_checkbox.isChecked()
-                    )
-
+                    # Session managed by HybridAuthManager internally
+                    
                     # Emit success signal
                     self.login_successful.emit(user.user_id, username)
                     self.accept()
 
             else:
-                QMessageBox.warning(self, _("Ошибка входа"), _("Неверное имя пользователя или пароль"))
+                error_msg = error if error else _("Неверное имя пользователя или пароль")
+                QMessageBox.warning(self, _("Ошибка входа"), error_msg)
                 self.password_input.clear()
                 self.password_input.setFocus()
 
@@ -406,7 +405,9 @@ class CreateAccountDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = ModuleLogger("CreateAccountDialog")
-        self.auth_manager = get_auth_manager()
+        # Используем HybridAuthManager для поддержки удалённого сервера
+        config = Config()
+        self.auth_manager = HybridAuthManager(config)
         self.created_user_id = None
         self.created_username = None
         self.init_ui()
@@ -724,27 +725,73 @@ class CreateAccountDialog(QDialog):
             return
 
         try:
-            # Все новые пользователи создаются с ролью USER
-            # Администратор создается автоматически при первом запуске
-            role = Role.USER
+            # Попробуем создать пользователя через Client API (на сервере)
+            from utils.security.client_api import ArvisClientAPI
+            from config.config import Config
+            
+            config = Config()
+            use_remote = config.get("security.auth.use_remote_server", False)
+            server_url = config.get("security.auth.server_url", "")
+            
+            user_created_on_server = False
+            
+            if use_remote and server_url:
+                try:
+                    self.logger.info(f"Attempting to register user on server: {username}")
+                    client = ArvisClientAPI(str(server_url), timeout=10)
+                    
+                    # Генерируем email из username если нужно
+                    email = f"{username}@arvis.local"
+                    
+                    result = client.register(username, email, password, full_name=username)
+                    
+                    if result.get("success"):
+                        self.logger.info(f"User registered on server: {username}")
+                        user_created_on_server = True
+                        
+                        # Пробуем сразу войти
+                        login_result = client.login(username, password)
+                        if login_result.get("success"):
+                            user_data = login_result.get("user", {})
+                            self.created_user_id = user_data.get("id", user_data.get("user_id"))
+                            self.created_username = username
+                        
+                        QMessageBox.information(
+                            self,
+                            _("Успех"),
+                            _("Аккаунт успешно создан на сервере!\nТеперь вы можете войти."),
+                        )
+                        self.accept()
+                        return
+                    else:
+                        error = result.get("error", "Unknown error")
+                        self.logger.warning(f"Server registration failed: {error}")
+                        # Продолжим локальное создание
+                except Exception as e:
+                    self.logger.warning(f"Server registration error: {e}, falling back to local")
+                    # Продолжим локальное создание
+            
+            # Если сервер не доступен или не настроен - создаём локально
+            if not user_created_on_server:
+                self.logger.info(f"Creating user locally: {username}")
+                
+                # Create user locally через локальный auth manager
+                user = self.auth_manager.local_auth.create_user(username, password, Role.USER)
 
-            # Create user
-            user = self.auth_manager.create_user(username, password, role)
+                if user:
+                    self.logger.info(f"User created locally: {username} with role {user.role.name}")
+                    self.created_user_id = user.user_id
+                    self.created_username = username
 
-            if user:
-                self.logger.info(f"User created: {username} with role {role.value}")
-                self.created_user_id = user.user_id
-                self.created_username = username
+                    QMessageBox.information(
+                        self,
+                        _("Успех"),
+                        _("Аккаунт успешно создан локально!\nТеперь вы можете войти."),
+                    )
+                    self.accept()
 
-                QMessageBox.information(
-                    self,
-                    _("Успех"),
-                    _("Аккаунт успешно создан!\nТеперь вы можете войти."),
-                )
-                self.accept()
-
-            else:
-                QMessageBox.warning(self, _("Ошибка"), _("Не удалось создать аккаунт"))
+                else:
+                    QMessageBox.warning(self, _("Ошибка"), _("Не удалось создать аккаунт"))
 
         except ValueError as e:
             # User already exists

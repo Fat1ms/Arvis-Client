@@ -589,6 +589,11 @@ class MainWindow(QMainWindow):
             # Обновляем UI индикатор пользователя
             username_display = username or "User"
             self.status_panel.set_user_info(username_display, role_name, user_id, subscription_display)
+            
+            # ✅ ИСПРАВЛЕНИЕ: Обновляем видимость кнопки управления пользователями при смене аккаунта
+            is_admin = resolved_role == Role.ADMIN
+            self.chat_panel.set_user_management_visible(is_admin)
+            self.logger.info(f"User management button visibility: {is_admin} (role: {role_name})")
 
             # Сохраняем токен удалённой авторизации/URL сервера для диалога смены пароля
             try:
@@ -838,7 +843,7 @@ class MainWindow(QMainWindow):
             from src.gui.user_management_panel import UserManagementPanel
 
             # Проверяем права администратора
-            from utils.security import Permission, get_rbac_manager
+            from utils.security import Permission, Role, get_rbac_manager
 
             rbac = get_rbac_manager()
 
@@ -848,9 +853,12 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, _("Ошибка доступа"), _("Необходимо войти в систему"))
                 return
 
-            if not rbac.check_permission(self.current_user_id, Permission.USER_VIEW):
+            # ✅ ИСПРАВЛЕНИЕ: Используем правильную проверку прав через текущую роль
+            current_role = rbac.get_role()
+            if current_role != Role.ADMIN:
                 from PyQt5.QtWidgets import QMessageBox
 
+                self.logger.warning(f"Access denied: user role is {current_role.value}, required ADMIN")
                 QMessageBox.warning(self, _("Ошибка доступа"), _("У вас нет прав для управления пользователями"))
                 return
 

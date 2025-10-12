@@ -175,12 +175,12 @@ class LLMWarmup(QObject):
             if hasattr(self.llm_client, "simple_generate"):
                 response = self.llm_client.simple_generate(prompt=warmup_prompt, model=model, max_tokens=50, timeout=10)
             else:
-                # Fallback to stream_response
+                # Fallback to stream_response (использует старый формат: message как строка)
                 full_response = ""
                 for chunk in self.llm_client.stream_response(
-                    messages=[{"role": "user", "content": warmup_prompt}],
-                    model=model,
-                    max_tokens=50,
+                    message=warmup_prompt,
+                    context="",
+                    conversation_history=None
                 ):
                     if chunk:
                         full_response += chunk
