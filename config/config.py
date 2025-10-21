@@ -377,3 +377,40 @@ class Config:
             return str(launch_mode or "background").lower()
         except Exception:
             return "background"
+
+    # ---- TTS Factory Methods (Days 4-5) ----
+    def get_enabled_tts_engines(self) -> list:
+        """Get list of enabled TTS engines.
+        
+        Returns:
+            List of engine names that are enabled in config
+        """
+        engines = []
+        try:
+            engines_config = self.get("tts.engines", {})
+            for engine_name, config in engines_config.items():
+                if isinstance(config, dict) and config.get("enabled", True):
+                    engines.append(engine_name)
+        except Exception:
+            pass
+        
+        # Fallback to legacy config
+        if not engines:
+            engines = ["silero"]
+        
+        return engines
+
+    def get_tts_engine_config(self, engine_type: str) -> Dict[str, Any]:
+        """Get configuration for specific TTS engine.
+        
+        Args:
+            engine_type: Engine type (e.g., "silero", "bark")
+            
+        Returns:
+            Engine configuration dictionary
+        """
+        try:
+            return self.get(f"tts.engines.{engine_type}", {})
+        except Exception:
+            return {}
+

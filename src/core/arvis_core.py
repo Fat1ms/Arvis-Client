@@ -30,6 +30,8 @@ from modules.search_module import SearchModule
 from modules.stt_engine import STTEngine
 from modules.system_control import SystemControlModule
 from modules.tts_engine import TTSEngine
+from modules.tts_factory import TTSFactory  # NEW: Factory pattern (Days 4-5)
+from modules.tts_base import TTSEngineBase  # NEW: Base class for type hints
 from modules.wake_word_detector import KaldiWakeWordDetector
 from modules.weather_module import WeatherModule
 from utils.conversation_history import ConversationHistory
@@ -60,6 +62,7 @@ class ArvisCore(QObject):
     components_initialized = pyqtSignal()
     stt_model_ready = pyqtSignal(str)
     voice_assets_ready = pyqtSignal()
+    tts_engine_switched = pyqtSignal(str)  # NEW: Emits engine type when switched
 
     def __init__(self, config: Config):
         super().__init__()
@@ -94,6 +97,12 @@ class ArvisCore(QObject):
         self.tts_engine = None
         self.stt_engine = None
         self.wake_word_detector = None
+
+        # TTS Factory (Days 4-5: NEW)
+        self._tts_factory = TTSFactory()
+        self._tts_engine_type: Optional[str] = None  # Track current engine type
+        self._available_tts_engines: List[str] = []  # Available engines from config
+        self._tts_engine_priority: List[str] = []  # Fallback priority list
 
         # Modules
         self.weather_module = None
@@ -181,9 +190,28 @@ class ArvisCore(QObject):
                 self.llm_client = LLMClient(self.config)
                 self.logger.info("LLM client initialized")
 
-                # Initialize TTS engine (может быть медленно)
-                self.tts_engine = TTSEngine(self.config)
-                self.logger.info("TTS engine initialized")
+                # Initialize TTS engine using Factory pattern (Days 4-5: NEW)
+                self.logger.info("Initializing TTS engine using Factory pattern...")
+                try:
+                    self._build_engine_priority_list()
+                    engine_type = self.config.get("tts.default_engine", "silero")
+                    
+                    # Query server for engine negotiation (if hybrid mode)
+                    if self.config.get("auth.use_remote_server", False):
+                        server_engine = self._negotiate_engine_with_server()
+                        if server_engine:
+                            engine_type = server_engine
+                            self.logger.info(f"Server negotiated engine: {engine_type}")
+                    
+                    # Create engine with fallback
+                    self.tts_engine = self._create_tts_engine_with_fallback(engine_type)
+                    self.logger.info(f"TTS engine initialized: {self._tts_engine_type}")
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize TTS engine: {e}")
+                    # Fallback to basic TTSEngine if factory fails
+                    self.tts_engine = TTSEngine(self.config)
+                    self._tts_engine_type = "legacy"
+                    self.logger.info("TTS engine initialized (fallback to legacy)")
                 # Признак проигрывания TTS можно будет интегрировать при добавлении сигналов в TTSEngine
 
                 # Initialize STT engine (может быть медленно)
@@ -1818,6 +1846,143 @@ class ArvisCore(QObject):
                 "calendar": self.calendar_module is not None,
             },
         }
+
+    # ========== TTS Factory Methods (Days 4-5) ==========
+
+    def _negotiate_engine_with_server(self) -> Optional[str]:
+        """Query server for preferred TTS engine (hybrid system).
+        
+        Currently a placeholder. Will be implemented to query:
+        GET /api/client/engine-preference
+        
+        Returns: engine type string or None if unavailable
+        """
+        try:
+            self.logger.debug("Querying server for engine preference...")
+            # TODO: Implement server API call when Client API extended
+            # For now: return None (use local config)
+            return None
+        except Exception as e:
+            self.logger.warning(f"Server engine negotiation failed: {e}")
+            return None
+
+    def _build_engine_priority_list(self) -> None:
+        """Build fallback priority list from config.
+        
+        Priority: configured default → available engines
+        """
+        self._available_tts_engines = self._tts_factory.list_available_engines()
+        
+        # Primary engine from config
+        primary = self.config.get("tts.default_engine", "silero")
+        
+        # Others as fallback
+        others = [e for e in self._available_tts_engines if e != primary]
+        
+        # Build priority list
+        self._tts_engine_priority = [primary] + others
+        self.logger.info(f"TTS engine priority: {self._tts_engine_priority}")
+
+    def _create_tts_engine_with_fallback(self, engine_type: str) -> TTSEngineBase:
+        """Create TTS engine with fallback to alternatives.
+        
+        Args:
+            engine_type: Primary engine type to try
+            
+        Returns:
+            TTSEngineBase instance
+            
+        Raises:
+            RuntimeError: If all engines fail to initialize
+        """
+        # Try primary first, then fallback list
+        engines_to_try = [engine_type] + self._tts_engine_priority
+        
+        for engine in engines_to_try:
+            try:
+                self.logger.info(f"Attempting to create {engine} TTS engine...")
+                
+                # Create engine via factory
+                engine_obj = self._tts_factory.create_engine(engine, self.config)
+                
+                # Run health check
+                try:
+                    health = engine_obj.health_check()
+                    if not health.healthy:
+                        self.logger.warning(f"{engine} health check failed: {health.message}")
+                        continue
+                except Exception as hc_error:
+                    self.logger.warning(f"Health check for {engine} failed: {hc_error}")
+                    continue
+                
+                # Success!
+                self._tts_engine_type = engine
+                self.logger.info(f"✅ Successfully initialized {engine} TTS engine")
+                return engine_obj
+                
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize {engine}: {e}")
+                continue
+        
+        # All engines failed
+        raise RuntimeError("Could not initialize any TTS engine!")
+
+    async def switch_tts_engine_async(self, new_engine_type: str) -> bool:
+        """Switch to different TTS engine at runtime.
+        
+        Args:
+            new_engine_type: Engine type to switch to (e.g., "bark", "silero")
+            
+        Returns:
+            True if switch successful, False otherwise
+        """
+        try:
+            self.logger.info(f"Switching TTS engine: {self._tts_engine_type} → {new_engine_type}")
+            
+            # Check if new engine available
+            if not self._tts_factory.is_engine_available(new_engine_type):
+                self.logger.error(f"Engine {new_engine_type} not available")
+                return False
+            
+            # Stop current engine if speaking
+            try:
+                if self.tts_engine and hasattr(self.tts_engine, "get_status"):
+                    status = self.tts_engine.get_status()
+                    if status and hasattr(status, "value"):
+                        if status.value in ["SPEAKING", "INITIALIZING"]:
+                            await self.tts_engine.stop()
+            except Exception as stop_error:
+                self.logger.warning(f"Failed to stop current engine: {stop_error}")
+            
+            # Create new engine
+            new_engine = self._tts_factory.create_engine(new_engine_type, self.config)
+            
+            # Run health check
+            try:
+                health = new_engine.health_check()
+                if not health.healthy:
+                    self.logger.error(f"{new_engine_type} health check failed: {health.message}")
+                    return False
+            except Exception as hc_error:
+                self.logger.error(f"Health check for {new_engine_type} failed: {hc_error}")
+                return False
+            
+            # Switch
+            self.tts_engine = new_engine
+            self._tts_engine_type = new_engine_type
+            self.logger.info(f"✅ Successfully switched to {new_engine_type}")
+            
+            # Emit signal for UI update
+            try:
+                self.tts_engine_switched.emit(new_engine_type)
+            except Exception:
+                pass
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to switch engine: {e}")
+            return False
 
 
 class _LLMWorker(QThread):
