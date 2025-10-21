@@ -8,8 +8,8 @@ import time
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 
 class GenerationState(Enum):

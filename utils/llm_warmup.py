@@ -6,7 +6,7 @@ LLM Warmup Module - Pre-loads LLM model after login for faster first response
 import time
 from typing import Optional
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger

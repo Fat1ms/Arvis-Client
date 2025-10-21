@@ -6,10 +6,10 @@ Loading Screen for Arvis - показывается после логина
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont
-from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from version import get_version
 
@@ -106,13 +106,13 @@ class LoadingScreen(QWidget):
 
         # Main layout
         layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(25)
         layout.setContentsMargins(40, 40, 40, 40)
 
         # Title
         title_label = QLabel("Arvis AI Assistant")
-        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
             """
             QLabel {
@@ -130,13 +130,13 @@ class LoadingScreen(QWidget):
         orb_container = QWidget()
         orb_container.setStyleSheet("background: transparent;")
         orb_layout = QVBoxLayout()
-        orb_layout.setAlignment(Qt.AlignCenter)
+        orb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         orb_layout.addWidget(self.orb)
         orb_container.setLayout(orb_layout)
 
         # Status label
         self.status_label = QLabel("Инициализация...")
-        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet(
             """
@@ -177,7 +177,7 @@ class LoadingScreen(QWidget):
 
         # Detailed step label
         self.step_label = QLabel("")
-        self.step_label.setAlignment(Qt.AlignCenter)
+        self.step_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.step_label.setWordWrap(True)
         self.step_label.setStyleSheet(
             """
@@ -192,7 +192,7 @@ class LoadingScreen(QWidget):
 
         # Version
         version_label = QLabel(f"v{get_version()}")
-        version_label.setAlignment(Qt.AlignCenter)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setStyleSheet(
             """
             QLabel {
@@ -220,7 +220,7 @@ class LoadingScreen(QWidget):
 
     def center_window(self):
         """Center window on screen"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         screen = QApplication.primaryScreen()
         if screen:
@@ -242,7 +242,7 @@ class LoadingScreen(QWidget):
                 self.step_label.setText(step)
 
             # Process events to update UI
-            from PyQt5.QtWidgets import QApplication
+            from PyQt6.QtWidgets import QApplication
 
             QApplication.processEvents()
 

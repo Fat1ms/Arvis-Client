@@ -6,9 +6,9 @@ Admin panel for managing users, roles, and permissions
 from datetime import datetime
 from typing import List, Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -539,10 +539,10 @@ class UserManagementDialog(QDialog):
         twofa_item = QTableWidgetItem(twofa_text)
         twofa_item.setFlags(twofa_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
         try:
-            from PyQt5.QtCore import Qt as _Qt
+            from PyQt6.QtCore import Qt as _Qt
             twofa_item.setTextAlignment(_Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            twofa_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            twofa_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         twofa_item.setForeground(QColor('green') if user.require_2fa else QColor('gray'))
         self.users_table.setItem(row, 4, twofa_item)
 
@@ -576,7 +576,7 @@ class UserManagementDialog(QDialog):
 
     def _apply_role_color(self, item: QTableWidgetItem, role: Role):
         """Apply color coding to role"""
-        from PyQt5.QtGui import QColor
+        from PyQt6.QtGui import QColor
         colors = {
             Role.GUEST: QColor('gray'),
             Role.USER: QColor('cyan'),
@@ -689,7 +689,7 @@ class UserManagementDialog(QDialog):
 
     def create_user(self):
         """Create new user (server if available, else local)"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         # If remote admin session available -> create on server
         try:
@@ -737,7 +737,7 @@ class UserManagementDialog(QDialog):
         if reply == QMessageBox.Yes:
             from .login_dialog import CreateAccountDialog
             dialog = CreateAccountDialog(self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 self.load_users(); self.user_updated.emit()
 
     def edit_user_role(self, user):
@@ -748,7 +748,7 @@ class UserManagementDialog(QDialog):
             return
 
         # Show role selection dialog
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         roles = [_("Гость"), _("Пользователь"), _("Опытный пользователь"), _("Администратор")]
         current_role_name = self._get_role_display_name(user.role)
@@ -1027,7 +1027,7 @@ class UserManagementDialog(QDialog):
 
     def reset_password(self, user):
         """Reset user password"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         new_password, ok = QInputDialog.getText(
             self,
@@ -1093,7 +1093,7 @@ class UserManagementDialog(QDialog):
             # Show 2FA setup dialog
             dialog = TwoFactorSetupDialog(self, user.username)
 
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 # Get encrypted secret and hashed backup codes
                 encrypted_secret = dialog.get_encrypted_secret()
                 hashed_codes = dialog.get_hashed_backup_codes()

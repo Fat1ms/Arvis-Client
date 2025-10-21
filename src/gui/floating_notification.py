@@ -1,7 +1,7 @@
 """Floating notification widget for unobtrusive status messages."""
 
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer
-from PyQt5.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton, QWidget
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer
+from PyQt6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton, QWidget
 
 
 class FloatingNotification(QFrame):
@@ -74,7 +74,7 @@ class FloatingNotification(QFrame):
 
         self._close_btn = QPushButton("×", self)
         self._close_btn.clicked.connect(self.hide_notification)
-        layout.addWidget(self._close_btn, 0, Qt.AlignTop)  # type: ignore[attr-defined]
+        layout.addWidget(self._close_btn, 0, Qt.AlignmentFlag.AlignTop)  # type: ignore[attr-defined]
 
     # Public API -----------------------------------------------------------------
     def show_message(self, message: str, duration_ms: int = 6000) -> None:

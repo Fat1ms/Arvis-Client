@@ -7,7 +7,17 @@
 
 ---
 
-## [Unreleased] - Phase 3 Feature #1: Multi-Engine TTS System
+## [Unreleased] - PyQt6 Migration + Phase 3 Feature #1
+
+### Changed (21.10.2025)
+- 🎨 **PyQt6 Migration**: Полный переход с PyQt5 на PyQt6
+  - Обновлены все импорты (28 файлов Python)
+  - Исправлены API различия (`exec_()` → `exec()`)
+  - Обновлены Qt enums (AlignCenter → AlignmentFlag.AlignCenter)
+  - QtSvg: Разделение на QtSvg и QtSvgWidgets
+  - Обновлены зависимости в requirements.txt
+  - Обновлены batch файлы для проверки PyQt6
+  - Автоматизированный скрипт миграции `migrate_to_pyqt6.py`
 
 ### Added (21.10.2025)
 - 🎤 **Multi-Engine TTS System**: Factory pattern для управления несколькими TTS движками

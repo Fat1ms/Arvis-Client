@@ -3,9 +3,11 @@
 # ==============================================
 # CORE GUI FRAMEWORK
 # ==============================================
-PyQt5==5.15.10
-PyQt5-Qt5==5.15.2
-PyQt5-sip==12.13.0
+# Migrated from PyQt5 to PyQt6 (21.10.2025)
+PyQt6==6.7.1
+PyQt6-Qt6==6.7.2
+PyQt6-sip==13.8.0
+PyQt6-SVG==6.7.1  # For QSvgWidget, QSvgRenderer
 
 # ==============================================
 # AI AND MACHINE LEARNING
@@ -76,7 +78,7 @@ python-dotenv==1.0.0
 # DEVELOPMENT AND TESTING (OPTIONAL)
 # ==============================================
 pytest==7.4.4
-pytest-qt==4.3.1
+pytest-qt==4.3.1  # Compatible with both PyQt5 and PyQt6
 pytest-asyncio==0.21.1
 
 # ==============================================

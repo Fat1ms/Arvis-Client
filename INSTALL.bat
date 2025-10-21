@@ -80,7 +80,7 @@ pip install -r requirements.txt --no-warn-script-location
 if %errorlevel% neq 0 (
     echo WARNING: Some packages failed
     echo Installing critical packages...
-    pip install PyQt5 requests vosk soundfile numpy torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+    pip install PyQt6 requests vosk soundfile numpy torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 )
 
 echo    - PyAudio (may fail on Python 3.13)...

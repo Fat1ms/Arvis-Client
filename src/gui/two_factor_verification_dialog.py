@@ -7,8 +7,8 @@ Phase 2 Day 5: 2FA Implementation
 
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from i18n import _
 from utils.logger import ModuleLogger

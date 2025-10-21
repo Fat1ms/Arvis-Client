@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, cast
 
-from PyQt5.QtCore import QPropertyAnimation, QRect
-from PyQt5.QtCore import Qt as QtCoreQt
-from PyQt5.QtCore import QTimer, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QFont, QPainter, QPixmap
-from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QLabel, QProgressBar, QVBoxLayout, QWidget
+from PyQt6.QtCore import QPropertyAnimation, QRect
+from PyQt6.QtCore import Qt as QtCoreQt
+from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPixmap
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 # Добавляем путь к корню проекта для импорта version
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -117,12 +117,12 @@ class SplashScreen(QWidget):
 
         # Main layout
         layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
 
         # Title and version
         title_label = QLabel("Arvis")
-        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
             """
             QLabel {
@@ -135,7 +135,7 @@ class SplashScreen(QWidget):
         )
 
         version_label = QLabel(f"v{get_version()}")
-        version_label.setAlignment(Qt.AlignCenter)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setStyleSheet(
             """
             QLabel {
@@ -149,7 +149,7 @@ class SplashScreen(QWidget):
         # Animated orb
         self.orb = AnimatedOrb()
         orb_layout = QVBoxLayout()
-        orb_layout.setAlignment(Qt.AlignCenter)
+        orb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         orb_layout.addWidget(self.orb)
 
         # Progress bar
@@ -179,7 +179,7 @@ class SplashScreen(QWidget):
 
         # Status label
         self.status_label = QLabel("Инициализация...")
-        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet(
             """
             QLabel {
@@ -198,7 +198,7 @@ class SplashScreen(QWidget):
         layout.addLayout(orb_layout)
         # Add sufficient spacing between orb and progress bar to prevent overlap
         layout.addSpacing(80)
-        layout.addWidget(self.progress_bar, alignment=Qt.AlignCenter)
+        layout.addWidget(self.progress_bar, alignment=Qt.AlignmentFlag.AlignCenter)
         # Add space before status
         layout.addSpacing(20)
         layout.addWidget(self.status_label)
@@ -214,7 +214,7 @@ class SplashScreen(QWidget):
 
     def center_window(self):
         """Center window on screen"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         screen = QApplication.primaryScreen()
         if screen is None:

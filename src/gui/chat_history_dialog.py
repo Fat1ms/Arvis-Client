@@ -7,9 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -509,7 +509,7 @@ class ChatHistoryDialog(QDialog):
 
         if not messages:
             empty_label = QLabel(_("📭 История пуста"))
-            empty_label.setAlignment(Qt.AlignCenter)
+            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty_label.setStyleSheet(
                 """
                 QLabel {
@@ -563,7 +563,7 @@ class ChatHistoryDialog(QDialog):
     def export_history(self):
         """Export history to text file"""
         try:
-            from PyQt5.QtWidgets import QFileDialog
+            from PyQt6.QtWidgets import QFileDialog
 
             default_name = f"arvis_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             file_path, _selected_filter = QFileDialog.getSaveFileName(
@@ -603,7 +603,7 @@ class ChatHistoryDialog(QDialog):
     def show_error_message(self, message: str):
         """Show error message in messages area"""
         error_label = QLabel(f"❌ {message}")
-        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet(
             """
             QLabel {

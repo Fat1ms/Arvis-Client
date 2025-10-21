@@ -9,9 +9,9 @@ import logging
 import pyotp
 import qrcode
 import requests
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -84,10 +84,10 @@ class Setup2FADialog(QDialog):
 
         # QR Code
         self.qr_label = QLabel()
-        self.qr_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+        self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         self.qr_label.setMinimumSize(250, 250)
         self.qr_label.setStyleSheet("background-color: white; border-radius: 10px; padding: 10px;")
-        content_layout.addWidget(self.qr_label, alignment=Qt.AlignCenter)  # type: ignore[arg-type]
+        content_layout.addWidget(self.qr_label, alignment=Qt.AlignmentFlag.AlignCenter)  # type: ignore[arg-type]
 
         # Secret key (manual entry)
         secret_layout = QHBoxLayout()
@@ -332,7 +332,7 @@ class Setup2FADialog(QDialog):
 
     def copy_secret(self):
         """Копирование секретного ключа в буфер обмена"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         if self.secret:
             clipboard = QApplication.clipboard()
@@ -441,7 +441,7 @@ class Setup2FADialog(QDialog):
             "Вы можете отключить её, если больше не хотите использовать дополнительную защиту."
         )
         enabled_label.setStyleSheet("color: #00ff00; font-size: 14px; padding: 20px;")
-        enabled_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+        enabled_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         enabled_label.setWordWrap(True)
 
         # Добавляем label в layout

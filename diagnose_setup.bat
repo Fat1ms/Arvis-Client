@@ -114,13 +114,13 @@ if exist "venv" (
             echo 📦 Проверка пакетов в venv:
             echo Проверка пакетов в venv: >> %LOG_FILE%
 
-            python -c "import PyQt5; print('✅ PyQt5:', PyQt5.__version__)" 2>nul
+            python -c "import PyQt6; print('✅ PyQt6:', PyQt6.__version__)" 2>nul
             if %errorlevel% neq 0 (
-                echo ❌ PyQt5 НЕ установлен в venv >> %LOG_FILE%
-                echo ❌ PyQt5 НЕ установлен в venv
+                echo ❌ PyQt6 НЕ установлен в venv >> %LOG_FILE%
+                echo ❌ PyQt6 НЕ установлен в venv
                 set MISSING_PACKAGES=1
             ) else (
-                for /f "tokens=*" %%i in ('python -c "import PyQt5; print('PyQt5:', PyQt5.__version__)" 2^>nul') do (
+                for /f "tokens=*" %%i in ('python -c "import PyQt6; print('PyQt6:', PyQt6.__version__)" 2^>nul') do (
                     echo ✅ %%i >> %LOG_FILE%
                 )
             )

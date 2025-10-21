@@ -14,7 +14,7 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import torch
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger

@@ -60,7 +60,7 @@ REM 5. Импорты Python
 echo [5/8] Проверка импортов...
 echo ========== Python Imports Check ========== >> %REPORT%
 if exist "venv\Scripts\python.exe" (
-    venv\Scripts\python.exe -c "import PyQt5; print('PyQt5: OK')" >> %REPORT% 2>&1
+    venv\Scripts\python.exe -c "import PyQt6; print('PyQt6: OK')" >> %REPORT% 2>&1
     venv\Scripts\python.exe -c "import requests; print('requests: OK')" >> %REPORT% 2>&1
     venv\Scripts\python.exe -c "import vosk; print('vosk: OK')" >> %REPORT% 2>&1
     venv\Scripts\python.exe -c "import torch; print('torch: OK')" >> %REPORT% 2>&1

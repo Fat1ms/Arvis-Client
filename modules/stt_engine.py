@@ -9,7 +9,7 @@ from typing import Optional
 
 import pyaudio
 import vosk
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger

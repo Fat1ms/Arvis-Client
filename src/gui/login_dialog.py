@@ -6,9 +6,9 @@ Login Dialog for Arvis Authentication System
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QHBoxLayout,
@@ -66,7 +66,7 @@ class LoginDialog(QDialog):
 
         # Logo/Icon
         logo_label = QLabel("🔐")
-        logo_label.setAlignment(Qt.AlignCenter)
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_label.setStyleSheet(
             """
             QLabel {
@@ -80,7 +80,7 @@ class LoginDialog(QDialog):
 
         # Title
         title_label = QLabel(_("Вход в Arvis"))
-        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
             """
             QLabel {
@@ -339,7 +339,7 @@ class LoginDialog(QDialog):
                     storage = UserStorage()
                     verify_dialog = TwoFactorVerificationDialog(self, user, storage)
 
-                    if verify_dialog.exec_() == QDialog.Accepted:
+                    if verify_dialog.exec() == QDialog.Accepted:
                         # 2FA verified, proceed with login
                         self.logger.info(f"2FA verification successful for user: {username}")
 
@@ -387,7 +387,7 @@ class LoginDialog(QDialog):
         """Show create account dialog"""
         try:
             dialog = CreateAccountDialog(self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 # Account created, try to login
                 user_id, username = dialog.get_credentials()
                 if user_id:
@@ -437,7 +437,7 @@ class CreateAccountDialog(QDialog):
 
         # Title
         title_label = QLabel(_("Создать новый аккаунт"))
-        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
             """
             QLabel {
@@ -491,7 +491,7 @@ class CreateAccountDialog(QDialog):
                 "ℹ️ Новые аккаунты создаются с ролью 'Пользователь'.\nДоступ к административным функциям выдается администратором."
             )
         )
-        role_info.setAlignment(Qt.AlignCenter)
+        role_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         role_info.setWordWrap(True)
         role_info.setStyleSheet(
             "color: rgba(255, 255, 255, 0.6); "
@@ -505,7 +505,7 @@ class CreateAccountDialog(QDialog):
 
         # Password strength indicator
         self.strength_label = QLabel("")
-        self.strength_label.setAlignment(Qt.AlignCenter)
+        self.strength_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.strength_label.setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 11px; background: transparent;")
         content_layout.addWidget(self.strength_label)
 

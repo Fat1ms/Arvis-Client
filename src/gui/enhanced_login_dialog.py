@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QHBoxLayout,
@@ -76,7 +76,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            logo_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         logo_label.setStyleSheet(
             """
             QLabel {
@@ -93,7 +93,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            title_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         title_label.setStyleSheet(
             """
             QLabel {
@@ -112,7 +112,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            subtitle_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         subtitle_label.setStyleSheet(
             """
             QLabel {
@@ -188,7 +188,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             separator.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            separator.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            separator.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         separator.setStyleSheet(
             """
             QLabel {
@@ -218,7 +218,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             guest_info.setAlignment(Qt.AlignmentFlag.AlignLeft)  # type: ignore[attr-defined]
         except Exception:
-            guest_info.setAlignment(Qt.AlignLeft)  # type: ignore[attr-defined]
+            guest_info.setAlignment(Qt.AlignmentFlag.AlignLeft)  # type: ignore[attr-defined]
         guest_info.setStyleSheet(
             """
             QLabel {
@@ -242,7 +242,7 @@ class EnhancedLoginDialog(QDialog):
         try:
             create_account_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
-            create_account_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            create_account_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         create_account_label.setStyleSheet("background: transparent; font-size: 12px;")
         create_account_label.linkActivated.connect(lambda: self.show_create_account())
         content_layout.addWidget(create_account_label)
@@ -415,7 +415,7 @@ class EnhancedLoginDialog(QDialog):
                         from src.gui.two_factor_verification_dialog import TwoFactorVerificationDialog
                         storage = UserStorage()
                         verify_dialog = TwoFactorVerificationDialog(self, user, storage)
-                        if verify_dialog.exec_() == QDialog.Accepted:
+                        if verify_dialog.exec() == QDialog.Accepted:
                             self._complete_login(user, session.session_id)
                         else:
                             self.password_input.clear(); self.password_input.setFocus()
@@ -490,7 +490,7 @@ class EnhancedLoginDialog(QDialog):
             from src.gui.login_dialog import CreateAccountDialog
 
             dialog = CreateAccountDialog(self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 # Account created, try to login
                 user_id, username = dialog.get_credentials()
                 if user_id:

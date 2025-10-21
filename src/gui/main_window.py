@@ -5,10 +5,10 @@ Main window for Arvis application
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
 
     def center_window(self):
         """Center window on screen"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         screen = QApplication.primaryScreen()
         if screen is None:
@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(10, 4, 4, 4)  # Слегка симметричные отступы
         title_layout.setSpacing(3)  # Интервал между элементами
-        title_layout.setAlignment(Qt.AlignVCenter)  # type: ignore[attr-defined]
+        title_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)  # type: ignore[attr-defined]
 
         # Title text
         self.title_label = QLabel(get_full_title())
@@ -481,12 +481,12 @@ class MainWindow(QMainWindow):
 
             if require_login:
                 # Показываем УЛУЧШЕННЫЙ диалог входа перед инициализацией core
-                from PyQt5.QtWidgets import QDialog
+                from PyQt6.QtWidgets import QDialog
 
                 from .enhanced_login_dialog import EnhancedLoginDialog
 
                 login_dialog = EnhancedLoginDialog(self)
-                result = login_dialog.exec_()
+                result = login_dialog.exec()
 
                 if result == QDialog.Accepted:
                     # Пользователь вошёл успешно
@@ -641,12 +641,12 @@ class MainWindow(QMainWindow):
                 self.arvis_core.set_current_user(None)
 
             # Показываем УЛУЧШЕННЫЙ диалог входа снова
-            from PyQt5.QtWidgets import QDialog
+            from PyQt6.QtWidgets import QDialog
 
             from .enhanced_login_dialog import EnhancedLoginDialog
 
             login_dialog = EnhancedLoginDialog(self)
-            result = login_dialog.exec_()
+            result = login_dialog.exec()
 
             if result == QDialog.Accepted:
                 user_id, username, role = login_dialog.get_credentials()
@@ -848,7 +848,7 @@ class MainWindow(QMainWindow):
             rbac = get_rbac_manager()
 
             if not self.current_user_id:
-                from PyQt5.QtWidgets import QMessageBox
+                from PyQt6.QtWidgets import QMessageBox
 
                 QMessageBox.warning(self, _("Ошибка доступа"), _("Необходимо войти в систему"))
                 return
@@ -856,7 +856,7 @@ class MainWindow(QMainWindow):
             # ✅ ИСПРАВЛЕНИЕ: Используем правильную проверку прав через текущую роль
             current_role = rbac.get_role()
             if current_role != Role.ADMIN:
-                from PyQt5.QtWidgets import QMessageBox
+                from PyQt6.QtWidgets import QMessageBox
 
                 self.logger.warning(f"Access denied: user role is {current_role.value}, required ADMIN")
                 QMessageBox.warning(self, _("Ошибка доступа"), _("У вас нет прав для управления пользователями"))
@@ -870,11 +870,11 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-            panel.exec_()
+            panel.exec()
 
         except Exception as e:
             self.logger.error(f"Failed to show user management panel: {e}")
-            from PyQt5.QtWidgets import QMessageBox
+            from PyQt6.QtWidgets import QMessageBox
 
             QMessageBox.critical(
                 self, _("Ошибка"), _("Не удалось открыть панель управления:\n{error}").format(error=str(e))
@@ -894,7 +894,7 @@ class MainWindow(QMainWindow):
             apply_to_widget_tree(self.settings_dialog)
         except Exception:
             pass
-        result = self.settings_dialog.exec_()
+        result = self.settings_dialog.exec()
         if result == self.settings_dialog.Accepted:
             # Update TTS settings without full restart
             self.update_tts_settings()
@@ -906,7 +906,7 @@ class MainWindow(QMainWindow):
         try:
             if not self.arvis_core or not hasattr(self.arvis_core, "conversation_history_manager"):
                 self.logger.error("Conversation history manager not available")
-                from PyQt5.QtWidgets import QMessageBox
+                from PyQt6.QtWidgets import QMessageBox
 
                 QMessageBox.warning(
                     self,
@@ -934,7 +934,7 @@ class MainWindow(QMainWindow):
                     self.status_panel.orb_widget.hide()
 
             # Показываем диалог модально
-            history_dialog.exec_()
+            history_dialog.exec()
 
             # Восстанавливаем орб после закрытия
             if orb_was_visible and hasattr(self.status_panel, "orb_widget"):
@@ -944,7 +944,7 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             self.logger.error(f"Error showing chat history: {e}")
-            from PyQt5.QtWidgets import QMessageBox
+            from PyQt6.QtWidgets import QMessageBox
 
             QMessageBox.critical(self, _("Ошибка"), _("Не удалось открыть историю:\n{error}").format(error=e))
 
@@ -976,7 +976,7 @@ class MainWindow(QMainWindow):
             self.arvis_core.shutdown()
 
         # Restart
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         QApplication.quit()
 
@@ -1184,6 +1184,6 @@ class MainWindow(QMainWindow):
         """Показать уведомление о доступном обновлении"""
         try:
             dialog = UpdateNotificationDialog(update_info, self.update_checker, self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             self.logger.error(f"Ошибка отображения диалога обновления: {e}")

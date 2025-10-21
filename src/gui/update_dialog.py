@@ -6,8 +6,8 @@ Update Dialog for Arvis
 import logging
 from pathlib import Path
 
-from PyQt5.QtCore import QThread, Qt, pyqtSignal
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QThread, Qt, pyqtSignal
+from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,

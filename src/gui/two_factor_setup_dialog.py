@@ -7,9 +7,9 @@ Phase 2 Day 5: 2FA Implementation
 
 from typing import List, Optional
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -98,7 +98,7 @@ class TwoFactorSetupDialog(QDialog):
             }
         """
         )
-        self.qr_label.setAlignment(Qt.AlignCenter)
+        self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._generate_qr_code()
         qr_layout.addWidget(self.qr_label)
 
@@ -209,7 +209,7 @@ class TwoFactorSetupDialog(QDialog):
             }
         """
         )
-        self.token_input.setAlignment(Qt.AlignCenter)
+        self.token_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(self.token_input)
 
         # Backup codes section
@@ -434,7 +434,7 @@ class TwoFactorSetupDialog(QDialog):
 
     def _copy_secret(self):
         """Copy TOTP secret to clipboard"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         clipboard = QApplication.clipboard()
         clipboard.setText(self.secret)
@@ -444,7 +444,7 @@ class TwoFactorSetupDialog(QDialog):
 
     def _copy_backup_codes(self):
         """Copy backup codes to clipboard"""
-        from PyQt5.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication
 
         clipboard = QApplication.clipboard()
         clipboard.setText("\n".join(self.backup_codes))
@@ -456,7 +456,7 @@ class TwoFactorSetupDialog(QDialog):
         """Save backup codes to text file"""
         from datetime import datetime
 
-        from PyQt5.QtWidgets import QFileDialog
+        from PyQt6.QtWidgets import QFileDialog
 
         filename, _ = QFileDialog.getSaveFileName(
             self,

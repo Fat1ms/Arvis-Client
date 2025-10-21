@@ -34,10 +34,10 @@ if exist "venv\Scripts\python.exe" (
 )
 echo.
 
-REM Dependencies
+# Dependencies
 echo [3/6] Dependencies...
 if exist "venv\Scripts\python.exe" (
-    venv\Scripts\python.exe -c "import PyQt5" 2>nul && echo [OK] PyQt5 || echo [FAIL] PyQt5
+    venv\Scripts\python.exe -c "import PyQt6" 2>nul && echo [OK] PyQt6 || echo [FAIL] PyQt6
     venv\Scripts\python.exe -c "import requests" 2>nul && echo [OK] requests || echo [FAIL] requests
     venv\Scripts\python.exe -c "import vosk" 2>nul && echo [OK] vosk || echo [FAIL] vosk
     venv\Scripts\python.exe -c "import torch" 2>nul && echo [OK] torch || echo [FAIL] torch

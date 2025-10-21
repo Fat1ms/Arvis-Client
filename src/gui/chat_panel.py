@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import QRectF, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QPainter
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
     QHBoxLayout,
@@ -54,7 +54,7 @@ class MessageBubble(QFrame):
         # time
         time_label = QLabel(datetime.now().strftime("%H:%M"))
         try:
-            time_label.setAlignment(Qt.AlignRight if self.is_user else Qt.AlignLeft)  # type: ignore[attr-defined]
+            time_label.setAlignment(Qt.AlignmentFlag.AlignRight if self.is_user else Qt.AlignmentFlag.AlignLeft)  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -108,7 +108,7 @@ class MessageBubble(QFrame):
                 """
             )
             if Path(svg).exists():
-                from PyQt5.QtSvg import QSvgRenderer
+                from PyQt6.QtSvg import QSvgRenderer
 
                 def paint(ev):
                     QPushButton.paintEvent(b, ev)
@@ -200,7 +200,7 @@ class SvgButton(QPushButton):
         use_active = self._force_active or self.isDown() or self.underMouse()
         svg_path = Path(self.svg_active if use_active else self.svg_normal)
         if svg_path.exists():
-            from PyQt5.QtSvg import QSvgRenderer
+            from PyQt6.QtSvg import QSvgRenderer
 
             r = QSvgRenderer(str(svg_path))
             rect = self.rect().adjusted(8, 8, -8, -8)
@@ -262,7 +262,7 @@ class ChatPanel(QWidget):
         self.chat_content = QWidget()
         self.chat_layout = QVBoxLayout()
         try:
-            self.chat_layout.setAlignment(Qt.AlignTop)  # type: ignore[attr-defined]
+            self.chat_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # type: ignore[attr-defined]
         except Exception:
             pass
         self.chat_layout.setSpacing(10)
@@ -282,7 +282,7 @@ class ChatPanel(QWidget):
         input_layout = QHBoxLayout()
         input_layout.setContentsMargins(5, 10, 5, 10)
         try:
-            input_layout.setAlignment(Qt.AlignVCenter)  # type: ignore[attr-defined]
+            input_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)  # type: ignore[attr-defined]
         except Exception:
             pass
         input_layout.setSpacing(8)
@@ -293,7 +293,7 @@ class ChatPanel(QWidget):
         self.message_input.returnPressed.connect(self.send_message)
         self.message_input.setFixedHeight(54)
         try:
-            self.message_input.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)  # type: ignore[attr-defined]
+            self.message_input.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)  # type: ignore[attr-defined]
         except Exception:
             pass
         self.message_input.setStyleSheet(
@@ -603,7 +603,7 @@ class ChatPanel(QWidget):
     def add_system_message(self, message: str):
         lbl = QLabel(message)
         try:
-            lbl.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
         except Exception:
             pass
         lbl.setWordWrap(True)

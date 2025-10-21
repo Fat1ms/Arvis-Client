@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 
 import pyaudio
 import vosk
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger

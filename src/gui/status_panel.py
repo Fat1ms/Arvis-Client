@@ -6,10 +6,10 @@ import math
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, QRectF, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QFont, QPainter, QPen
-from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
 from i18n import _
 
@@ -171,7 +171,7 @@ class SvgButton(QPushButton):
         svg_path = Path(self.svg_active if self.isDown() or self.underMouse() else self.svg_normal)
 
         if svg_path.exists():
-            from PyQt5.QtSvg import QSvgRenderer
+            from PyQt6.QtSvg import QSvgRenderer
 
             renderer = QSvgRenderer(str(svg_path))
             rect = self.rect().adjusted(8, 8, -8, -8)
@@ -265,7 +265,7 @@ class StatusPanel(QWidget):
             }
         """
         )
-        # self.recording_label.setAlignment(Qt.AlignHCenter) # Убрано из-за проблем с Qt
+        # self.recording_label.setAlignment(Qt.AlignmentFlag.AlignHCenter) # Убрано из-за проблем с Qt
         self.recording_label.hide()  # Скрыт по умолчанию
         orb_layout.addWidget(self.recording_label)
 
@@ -679,11 +679,11 @@ class StatusPanel(QWidget):
                 return
 
             dialog = UserManagementDialog(self.current_user_id, self)
-            dialog.exec_()
+            dialog.exec()
 
         except Exception as e:
             self.logger.error(f"Failed to open user management: {e}")
-            from PyQt5.QtWidgets import QMessageBox
+            from PyQt6.QtWidgets import QMessageBox
 
             QMessageBox.critical(
                 self, _("Ошибка"), _("Не удалось открыть управление пользователями:\n{error}").format(error=e)
@@ -691,7 +691,7 @@ class StatusPanel(QWidget):
 
     def _handle_logout(self):
         """Handle logout button click"""
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt6.QtWidgets import QMessageBox
 
         reply = QMessageBox.question(
             self,

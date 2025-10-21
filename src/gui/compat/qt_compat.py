@@ -76,12 +76,12 @@ if _USING_PYQT6:
     )
     from PyQt6.QtCore import QTimer as QtTimer
 else:
-    from PyQt5.QtCore import (
+    from PyQt6.QtCore import (
         Qt, QTimer, Signal, Slot, QThread, QObject,
         QRect, QSize, QPoint, QEvent, QTimer,
         pyqtSignal, pyqtSlot,
     )
-    from PyQt5.QtWidgets import (
+    from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget,
         QPushButton, QLabel, QLineEdit,
         QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -95,7 +95,7 @@ else:
         QIcon, QColor, QFont, QPixmap,
         QPainter, QPen, QBrush, QImage,
     )
-    from PyQt5.QtCore import QTimer as QtTimer
+    from PyQt6.QtCore import QTimer as QtTimer
 
 # ============================================================================
 # Совместимые перечисления (Enums)
@@ -130,31 +130,31 @@ def align_left() -> Any:
     """Получить флаг выравнивания влево."""
     if _USING_PYQT6:
         return Qt.AlignmentFlag.AlignLeft
-    return Qt.AlignLeft
+    return Qt.AlignmentFlag.AlignLeft
 
 def align_right() -> Any:
     """Получить флаг выравнивания вправо."""
     if _USING_PYQT6:
         return Qt.AlignmentFlag.AlignRight
-    return Qt.AlignRight
+    return Qt.AlignmentFlag.AlignRight
 
 def align_center() -> Any:
     """Получить флаг выравнивания в центр."""
     if _USING_PYQT6:
         return Qt.AlignmentFlag.AlignCenter
-    return Qt.AlignCenter
+    return Qt.AlignmentFlag.AlignCenter
 
 def align_v_center() -> Any:
     """Получить флаг вертикального выравнивания в центр."""
     if _USING_PYQT6:
         return Qt.AlignmentFlag.AlignVCenter
-    return Qt.AlignVCenter
+    return Qt.AlignmentFlag.AlignVCenter
 
 def align_h_center() -> Any:
     """Получить флаг горизонтального выравнивания в центр."""
     if _USING_PYQT6:
         return Qt.AlignmentFlag.AlignHCenter
-    return Qt.AlignHCenter
+    return Qt.AlignmentFlag.AlignHCenter
 
 # ============================================================================
 # Совместимые атрибуты окна (Widget Attributes)

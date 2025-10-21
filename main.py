@@ -11,9 +11,9 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont, QFontDatabase, QPixmap
-from PyQt5.QtWidgets import QApplication, QLabel, QProgressBar, QSplashScreen, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont, QFontDatabase, QPixmap
+from PyQt6.QtWidgets import QApplication, QLabel, QProgressBar, QSplashScreen, QVBoxLayout, QWidget
 
 from config.config import Config
 from i18n import I18N
@@ -155,12 +155,12 @@ class ArvisApp:
     def show_login_dialog(self) -> bool:
         """Show login dialog and return True if login successful"""
         try:
-            from PyQt5.QtWidgets import QDialog
+            from PyQt6.QtWidgets import QDialog
 
             from src.gui.enhanced_login_dialog import EnhancedLoginDialog
 
             login_dialog = EnhancedLoginDialog()
-            result = login_dialog.exec_()
+            result = login_dialog.exec()
 
             if result == QDialog.Accepted:
                 user_id, username, role = login_dialog.get_credentials()
@@ -327,7 +327,7 @@ class ArvisApp:
             self.logger.info("GUI инициализирован. Запуск цикла событий...")
 
             # Start the event loop
-            result = self.app.exec_() if self.app is not None else 1
+            result = self.app.exec() if self.app is not None else 1
 
             # Временно отключаем мониторинг производительности
             # performance_monitor.stop_monitoring()
@@ -348,7 +348,7 @@ class ArvisApp:
 
             # Показываем сообщение об ошибке пользователю
             if hasattr(self, "app") and self.app:
-                from PyQt5.QtWidgets import QMessageBox
+                from PyQt6.QtWidgets import QMessageBox
 
                 QMessageBox.critical(None, "Критическая ошибка", f"Ошибка запуска Arvis:\n{e}")
             return 1

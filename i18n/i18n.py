@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from PyQt5.QtWidgets import QCheckBox, QComboBox, QGroupBox, QLabel, QLineEdit, QPushButton, QWidget
+from PyQt6.QtWidgets import QCheckBox, QComboBox, QGroupBox, QLabel, QLineEdit, QPushButton, QWidget
 
 
 class I18N:

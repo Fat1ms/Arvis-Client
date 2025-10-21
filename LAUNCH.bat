@@ -23,9 +23,9 @@ call venv\Scripts\activate.bat
 
 REM Check dependencies
 echo Checking dependencies...
-python -c "import PyQt5" 2>nul
+python -c "import PyQt6" 2>nul
 if %errorlevel% neq 0 (
-    echo ERROR: PyQt5 not installed!
+    echo ERROR: PyQt6 not installed!
     echo Run: INSTALL.bat
     pause
     exit /b 1

@@ -29,7 +29,7 @@ echo [3/7] Проверка виртуального окружения...
 if exist "venv\Scripts\activate.bat" (
     echo ✅ Виртуальное окружение существует
     call venv\Scripts\activate.bat
-    python -c "import PyQt5; print('✅ PyQt5 установлен')" 2>nul || echo "❌ PyQt5 не установлен"
+    python -c "import PyQt6; print('✅ PyQt6 установлен')" 2>nul || echo "❌ PyQt6 не установлен"
     python -c "import requests; print('✅ Requests установлен')" 2>nul || echo "❌ Requests не установлен"
     python -c "import torch; print('✅ PyTorch установлен')" 2>nul || echo "❌ PyTorch не установлен"
 ) else (

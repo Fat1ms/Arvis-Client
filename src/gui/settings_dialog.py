@@ -4,9 +4,9 @@ Settings dialog for Arvis application
 
 from pathlib import Path
 
-from PyQt5.QtCore import QRect, QRectF, Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QPainterPath, QRegion
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QRect, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QPainterPath, QRegion
+from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -75,7 +75,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(0, 10, 10, 10)
 
         # Контент: слева вертикальные кнопки разделов, справа содержимое вкладок
-        from PyQt5.QtWidgets import QStackedWidget
+        from PyQt6.QtWidgets import QStackedWidget
 
         # Create horizontal layout for nav + content
         tabs_layout = QHBoxLayout()
@@ -152,7 +152,7 @@ class SettingsDialog(QDialog):
 
             def paintEvent(self, event):
                 # Кастомная отрисовка: фон-картинка + текст заголовка раздела
-                from PyQt5.QtGui import QColor, QFontMetrics, QPainter, QPen, QPixmap
+                from PyQt6.QtGui import QColor, QFontMetrics, QPainter, QPen, QPixmap
 
                 painter = QStylePainter(self)
 
@@ -169,7 +169,7 @@ class SettingsDialog(QDialog):
                 # Небольшой отступ слева, чтобы текст не лип к краю
                 text_rect = target_rect.adjusted(16, 0, -10, 0)
                 painter.setRenderHint(QPainter.Antialiasing, True)
-                painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, self.text())  # type: ignore[attr-defined]
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())  # type: ignore[attr-defined]
 
             def resizeEvent(self, event):
                 # Маска с плоской левой стороной и скруглением 16px справа
@@ -1048,7 +1048,7 @@ class SettingsDialog(QDialog):
             # Если обновление применено, перезапускаем приложение
             dialog.update_applied.connect(self.handle_update_applied)
             
-            dialog.exec_()
+            dialog.exec()
 
         except Exception as e:
             QMessageBox.critical(
@@ -1196,7 +1196,7 @@ class SettingsDialog(QDialog):
 
             # Open user management dialog
             dialog = UserManagementDialog(current_user_id, self)
-            dialog.exec_()
+            dialog.exec()
 
         except Exception as e:
             QMessageBox.critical(
@@ -1211,7 +1211,7 @@ class SettingsDialog(QDialog):
             from .change_password_dialog import ChangePasswordDialog
 
             dialog = ChangePasswordDialog(self.current_user_id, self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 QMessageBox.information(self, "Успех", "Пароль успешно изменён")
         except ImportError:
             QMessageBox.information(
@@ -1226,7 +1226,7 @@ class SettingsDialog(QDialog):
             from .setup_2fa_dialog import Setup2FADialog
 
             dialog = Setup2FADialog(self.current_user_id, self)
-            dialog.exec_()
+            dialog.exec()
         except ImportError:
             QMessageBox.information(
                 self,
@@ -1240,7 +1240,7 @@ class SettingsDialog(QDialog):
             from .audit_log_dialog import AuditLogDialog
 
             dialog = AuditLogDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except ImportError:
             QMessageBox.information(
                 self,
@@ -1578,7 +1578,7 @@ class SettingsDialog(QDialog):
         import os
         from pathlib import Path
 
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt6.QtWidgets import QMessageBox
 
         # Confirm action
         reply = QMessageBox.question(
