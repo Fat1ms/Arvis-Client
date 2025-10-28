@@ -87,7 +87,7 @@ class LoadingScreen(QWidget):
 
     def init_ui(self):
         """Initialize UI components"""
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(500, 450)
 
         # Тёмный фон

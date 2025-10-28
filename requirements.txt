@@ -5,9 +5,10 @@
 # ==============================================
 # Migrated from PyQt5 to PyQt6 (21.10.2025)
 PyQt6==6.7.1
-PyQt6-Qt6==6.7.2
 PyQt6-sip==13.8.0
-PyQt6-SVG==6.7.1  # For QSvgWidget, QSvgRenderer
+# Note: PyQt6-Qt6 is optional, auto-selected by PyQt6
+# PyQt6-Qt6
+# PyQt6-SVG  # Optional, may not be available for all Python versions
 
 # ==============================================
 # AI AND MACHINE LEARNING
@@ -19,17 +20,37 @@ torch>=2.0.0
 torchaudio>=2.0.0
 
 # ==============================================
+# SPEECH SYNTHESIS (TTS)
+# ==============================================
+# Silero TTS (Russian, fast, offline)
+# pip install silero models will be downloaded by torch.hub
+# No explicit package needed - use torch.hub.load()
+
+# Bark TTS (Multilingual, offline, slower)
+# Note: Very large model (~7GB), lazy loading recommended
+bark-ml>=0.1.0  # Bark text-to-speech
+
+# SAPI5 Fallback (Windows TTS)
+# Primary option - pure Python, no dependencies
+pyttsx3>=2.90  # Text-to-speech library (Windows/Mac/Linux support)
+
+# Windows-only: direct SAPI COM access (optional, for advanced use)
+# pywin32>=306  # Automatically installed as dependency
+
+# ==============================================
 # SPEECH RECOGNITION (VOSK)
 # ==============================================
-vosk==0.3.45
-srt==3.5.3  # For subtitle processing if needed
+# Note: vosk may not be available for Python 3.13+
+# For offline Russian speech recognition
+vosk>=0.3.45; python_version < "3.13"  # Offline speech recognition (Russian language)
+srt>=3.5.3  # For subtitle processing if needed
 
 # ==============================================
 # AUDIO PROCESSING
 # ==============================================
 soundfile==0.12.1
 sounddevice==0.4.6
-numpy>=1.24.0  # For audio data processing
+numpy<2  # For audio data processing; PyTorch wheels on Windows require NumPy 1.x
 # PyAudio - НЕСОВМЕСТИМ С PYTHON 3.13!
 # Для Python 3.11-3.12: pip install pyaudio==0.2.13
 # Для Python 3.13+: pip install pipwin; pipwin install pyaudio

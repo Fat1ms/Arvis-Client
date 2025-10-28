@@ -10,14 +10,14 @@ class FloatingNotification(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("FloatingNotification")
-        self.setAttribute(Qt.WA_StyledBackground, True)  # type: ignore[attr-defined]
-        self.setAttribute(Qt.WA_TranslucentBackground, True)  # type: ignore[attr-defined]
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setWindowFlags(
-            Qt.ToolTip  # type: ignore[attr-defined]
-            | Qt.FramelessWindowHint  # type: ignore[attr-defined]
-            | Qt.SubWindow  # type: ignore[attr-defined]
+            Qt.WindowType.Tool
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.SubWindow
         )
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)  # type: ignore[attr-defined]
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
         self._setup_ui()
 
@@ -30,7 +30,7 @@ class FloatingNotification(QFrame):
 
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(220)
-        self._fade_anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
         self._fade_anim.finished.connect(self._on_fade_finished)
 
         self._pending_hide = False

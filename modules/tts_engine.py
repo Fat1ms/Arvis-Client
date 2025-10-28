@@ -13,7 +13,15 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import torch
+
+# Torch may fail to import on some Windows setups due to DLL issues (c10.dll)
+# Make it optional to allow the app to start with subprocess TTS fallback
+try:
+    import torch as _torch  # type: ignore
+    _TORCH_IMPORT_ERROR: Optional[BaseException] = None
+except BaseException as _e:  # ImportError or OSError (DLL load failure)
+    _torch = None  # type: ignore
+    _TORCH_IMPORT_ERROR = _e
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from config.config import Config
@@ -83,8 +91,14 @@ class TTSEngine:
                 # Временно заменяем sys.path
                 sys.path = filtered_paths
 
+                # Если torch недоступен, пропускаем прямую загрузку и используем subprocess
+                if _torch is None:
+                    raise RuntimeError(
+                        f"PyTorch not available: {_TORCH_IMPORT_ERROR}. Using subprocess-only TTS."
+                    )
+
                 # Загружаем модель (в разных версиях silero возвращается либо модель, либо кортеж)
-                loaded = torch.hub.load(
+                loaded = _torch.hub.load(
                     repo_or_dir="snakers4/silero-models",
                     model="silero_tts",
                     language="ru",
@@ -158,7 +172,7 @@ class TTSEngine:
                 audio = model_any.apply_tts(text=text, speaker=speaker, sample_rate=self.sample_rate)
 
                 if audio is not None:
-                    if torch.is_tensor(audio):
+                    if _torch is not None and hasattr(_torch, "is_tensor") and _torch.is_tensor(audio):
                         audio = audio.cpu().numpy()
 
                     # Запускаем воспроизведение в отдельном потоке
@@ -347,7 +361,7 @@ class TTSEngine:
 
             if audio is not None:
                 # Convert to numpy array if needed
-                if torch.is_tensor(audio):
+                if _torch is not None and hasattr(_torch, "is_tensor") and _torch.is_tensor(audio):
                     audio = audio.cpu().numpy()
 
                 # Save to file
@@ -475,20 +489,34 @@ class TTSEngine:
                 "--device",
                 self.device,
             ]
-            # Проброс флага разрешения SAPI
-            if bool(self.config.get("tts.sapi_enabled", True)):
+            # Проброс флага разрешения SAPI (по умолчанию выключен)
+            if bool(self.config.get("tts.sapi_enabled", False)):
                 args += ["--sapi-enabled"]
             if output_filename:
                 args += ["--output", output_filename]
 
             # Увеличиваем timeout и улучшаем обработку ошибок
             try:
-                self.logger.debug(f"Running subprocess: {' '.join(args[:3])}...")
+                # Динамический таймаут: даём достаточно времени на инициализацию 
+                # sounddevice и загрузку модели на Windows
+                timeout_sec = None
+                try:
+                    timeout_cfg = self.config.get("tts.subprocess_timeout_sec", None)
+                    if isinstance(timeout_cfg, (int, float, str)):
+                        timeout_sec = int(float(timeout_cfg))
+                except Exception:
+                    timeout_sec = None
+
+                if timeout_sec is None or timeout_sec <= 0:
+                    # Используем 45 сек — достаточно для первой загрузки и инициализации
+                    timeout_sec = 45
+
+                self.logger.debug(f"Running subprocess: {' '.join(args[:3])}... (timeout={timeout_sec}s)")
                 result = subprocess.run(
                     args,
                     capture_output=True,
                     text=True,
-                    timeout=30,
+                    timeout=timeout_sec,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                 )
 
@@ -503,7 +531,7 @@ class TTSEngine:
                     return False
 
             except subprocess.TimeoutExpired:
-                self.logger.error("TTS subprocess timed out after 30 seconds")
+                self.logger.error(f"TTS subprocess timed out after {timeout_sec}s")
                 return False
 
         except Exception as e:

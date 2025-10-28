@@ -48,7 +48,7 @@ class LoginDialog(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -112,7 +112,7 @@ class LoginDialog(QDialog):
         password_label = QLabel(_("Пароль:"))
         password_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); background: transparent;")
         self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText(_("Введите пароль"))
         self.password_input.returnPressed.connect(self.handle_login)
         password_layout.addWidget(password_label)
@@ -339,7 +339,7 @@ class LoginDialog(QDialog):
                     storage = UserStorage()
                     verify_dialog = TwoFactorVerificationDialog(self, user, storage)
 
-                    if verify_dialog.exec() == QDialog.Accepted:
+                    if verify_dialog.exec() == QDialog.DialogCode.Accepted:
                         # 2FA verified, proceed with login
                         self.logger.info(f"2FA verification successful for user: {username}")
 
@@ -387,7 +387,7 @@ class LoginDialog(QDialog):
         """Show create account dialog"""
         try:
             dialog = CreateAccountDialog(self)
-            if dialog.exec() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 # Account created, try to login
                 user_id, username = dialog.get_credentials()
                 if user_id:
@@ -419,7 +419,7 @@ class CreateAccountDialog(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -467,7 +467,7 @@ class CreateAccountDialog(QDialog):
         password_label = QLabel(_("Пароль:"))
         password_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); background: transparent;")
         self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText(_("Минимум 8 символов"))
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_input)
@@ -479,7 +479,7 @@ class CreateAccountDialog(QDialog):
         confirm_label = QLabel(_("Подтвердите пароль:"))
         confirm_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); background: transparent;")
         self.confirm_input = QLineEdit()
-        self.confirm_input.setEchoMode(QLineEdit.Password)
+        self.confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_input.setPlaceholderText(_("Повторите пароль"))
         confirm_layout.addWidget(confirm_label)
         confirm_layout.addWidget(self.confirm_input)

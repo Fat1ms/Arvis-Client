@@ -47,7 +47,8 @@ class MessageBubble(QFrame):
         msg = QLabel(self.message)
         msg.setWordWrap(True)
         try:
-            msg.setTextInteractionFlags(Qt.TextSelectableByMouse)  # type: ignore[attr-defined]
+            # PyQt6: use explicit enum for text interaction flags
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         except Exception:
             pass
 
@@ -113,7 +114,13 @@ class MessageBubble(QFrame):
                 def paint(ev):
                     QPushButton.paintEvent(b, ev)
                     p = QPainter(b)
-                    p.setRenderHint(QPainter.Antialiasing)
+                    try:
+                        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    except Exception:
+                        try:
+                            p.setRenderHint(QPainter.Antialiasing)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
                     r = QSvgRenderer(svg)
                     rect = b.rect().adjusted(2, 2, -2, -2)
                     r.render(p, QRectF(rect))
@@ -159,7 +166,13 @@ class TypingIndicator(QWidget):
 
     def paintEvent(self, event):  # noqa: N802
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        except Exception:
+            try:
+                p.setRenderHint(QPainter.Antialiasing)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         p.setBrush(QColor(150, 150, 150))
         try:
             p.setPen(Qt.NoPen)  # type: ignore[attr-defined]
@@ -196,7 +209,13 @@ class SvgButton(QPushButton):
     def paintEvent(self, event):  # noqa: N802
         super().paintEvent(event)
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        except Exception:
+            try:
+                p.setRenderHint(QPainter.Antialiasing)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         use_active = self._force_active or self.isDown() or self.underMouse()
         svg_path = Path(self.svg_active if use_active else self.svg_normal)
         if svg_path.exists():

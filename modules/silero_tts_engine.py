@@ -7,13 +7,21 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import torch
+
+# Make torch optional to avoid DLL crashes on Windows at import time
+try:
+    import torch as _torch  # type: ignore
+    _TORCH_IMPORT_ERROR = None
+except BaseException as _e:  # ImportError or OSError (DLL load failure)
+    _torch = None  # type: ignore
+    _TORCH_IMPORT_ERROR = _e
 
 # Setup path for imports
 project_root = Path(__file__).parent.parent
@@ -53,75 +61,70 @@ class SileroTTSEngine(TTSEngineBase):
         self.min_buffer_size = 20  # Minimum characters before speaking
         self.word_boundary_chars = [" ", ".", ",", "!", "?", ";", ":", "\n", "\t"]
 
-        # Initialize TTS
-        self._init_tts()
+        # Lazy loading flag - model will be loaded on first use
+        self._model_initialized = False
+        self._model_loading = False
 
-    def _init_tts(self):
-        """Initialize Silero TTS model"""
+    def _load_model_lazy(self):
+        """Lazy load Silero model on first use (to avoid blocking in __init__)"""
+        if self._model_initialized or self._model_loading:
+            return
+        
+        self._model_loading = True
         try:
-            self.logger.info("Initializing Silero TTS...")
+            self.logger.info("Loading Silero TTS model (lazy init)...")
 
             # Сначала проверим subprocess worker
             worker_path = Path(__file__).parent / "tts_worker_subprocess.py"
             self._subprocess_available = worker_path.exists()
 
             # Попробуем прямую загрузку Silero
+            if _torch is None:
+                raise RuntimeError(f"PyTorch not available: {_TORCH_IMPORT_ERROR}")
+            
             try:
-                # Временно очищаем sys.path от конфликтующих путей
-                original_path = sys.path.copy()
-                current_dir = os.getcwd()
-
-                # Удаляем все пути, содержащие текущий проект
-                filtered_paths = []
-                for path in sys.path:
-                    path_abs = os.path.abspath(path) if path else ""
-                    current_abs = os.path.abspath(current_dir)
-
-                    # Не включаем пути к нашему проекту
-                    if not path or path_abs == current_abs or current_abs in path_abs or "Arvis" in path_abs:
-                        continue
-                    filtered_paths.append(path)
-
-                # Временно заменяем sys.path
-                sys.path = filtered_paths
-
-                # Загружаем модель (в разных версиях silero возвращается либо модель, либо кортеж)
-                loaded = torch.hub.load(
+                self.logger.info("torch.hub.load() starting...")
+                
+                # Add cache dir to sys.path to fix import errors
+                cache_dir = Path.home() / ".cache" / "torch" / "hub" / "snakers4_silero-models_master"
+                if cache_dir.exists() and str(cache_dir) not in sys.path:
+                    sys.path.insert(0, str(cache_dir))
+                
+                # Load model with trust_repo to avoid prompts
+                loaded = _torch.hub.load(
                     repo_or_dir="snakers4/silero-models",
                     model="silero_tts",
                     language="ru",
                     speaker="v3_1_ru",
                     verbose=False,
+                    trust_repo=True,
                 )
+                
+                # Handle both single model and tuple returns
                 model = loaded[0] if isinstance(loaded, (tuple, list)) else loaded
-
-                # Восстанавливаем sys.path
-                sys.path = original_path
-
-                # Тип модели для стат. анализатора неизвестен, приводим к Any
+                
+                # Move to device and store
                 model_any: Any = model
                 model_any.to(self.device)
                 self.model = model_any
                 self.is_ready_flag = True
-                self.logger.info("✓ Silero TTS initialized successfully")
+                self._model_initialized = True
+                self.logger.info("Silero TTS model loaded successfully")
 
             except Exception as model_error:
-                # Восстанавливаем sys.path в любом случае
-                sys.path = original_path
-                self.logger.warning(f"Direct TTS model loading failed: {model_error}")
-
-                # Fallback - используем только subprocess
-                if self._subprocess_available:
-                    self.logger.info("Using subprocess-only TTS mode (fallback)")
-                    self.is_ready_flag = False  # Прямая модель не загружена
-                    self.model = None
-                else:
-                    raise Exception(f"Neither direct model nor subprocess available: {model_error}")
+                self.logger.warning(f"Silero model loading failed: {model_error}")
+                # Mark as initialized but model not loaded - will use fallback
+                self._model_initialized = True
+                self.is_ready_flag = False
+                self.model = None
 
         except Exception as e:
             self.logger.error(f"Failed to initialize TTS: {e}")
+            self._model_initialized = True
             self.is_ready_flag = False
             self.model = None
+        finally:
+            self._model_loading = False
 
     def _map_voice(self, voice: str) -> str:
         """Normalize voice aliases to real Silero speaker ids"""
@@ -152,11 +155,16 @@ class SileroTTSEngine(TTSEngineBase):
 
         def tts_task():
             try:
+                # Lazy load model on first use
+                if not self._model_initialized:
+                    self.logger.info("First TTS use - loading model lazily...")
+                    self._load_model_lazy()
+
                 self.logger.info(f"Starting TTS for: {text[:50]}...")
 
                 # Если прямая модель не загружена, используем subprocess
                 if self.model is None:
-                    self.logger.info("Direct model not available, using subprocess")
+                    self.logger.info("Direct model not available, using fallback")
                     return self._speak_via_subprocess(text, voice)
 
                 # Если модель загружена, используем её
@@ -169,7 +177,7 @@ class SileroTTSEngine(TTSEngineBase):
                 audio = model_any.apply_tts(text=text, speaker=speaker, sample_rate=self.sample_rate)
 
                 if audio is not None:
-                    if torch.is_tensor(audio):
+                    if _torch is not None and hasattr(_torch, "is_tensor") and _torch.is_tensor(audio):
                         audio = audio.cpu().numpy()
 
                     # Запускаем воспроизведение в отдельном потоке
@@ -267,7 +275,7 @@ class SileroTTSEngine(TTSEngineBase):
                     model_any: Any = self.model
                     audio = model_any.apply_tts(
                         text="тест",
-                        speaker=self._map_voice(self.voice),
+                        speaker=self._map_voice(str(self.voice or "")),
                         sample_rate=self.sample_rate
                     )
                     if audio is None:
@@ -327,68 +335,97 @@ class SileroTTSEngine(TTSEngineBase):
         thread.start()
 
     def _speak_via_subprocess(self, text: str, voice: Optional[str] = None, output_filename: Optional[str] = None):
-        """Use a dedicated subprocess worker to synthesize speech"""
+        """Use subprocess worker for fallback synthesis, respecting SAPI flag"""
         try:
             worker_path = Path(__file__).parent / "tts_worker_subprocess.py"
             if not worker_path.exists():
                 self.logger.error(f"Subprocess worker not found: {worker_path}")
                 return False
 
-            voice = str(voice or self.voice)
+            voice_str = str(voice or self.voice)
 
-            # Ограничиваем длину текста для стабильности
+            # Limit text length for stability
             original_length = len(text)
             if len(text) > 500:
                 text = text[:500] + "..."
                 self.logger.info(f"Text truncated from {original_length} to {len(text)} chars")
 
-            self.logger.info(f"Starting subprocess TTS: '{text[:30]}...' with voice '{voice}'")
-
             args = [
                 sys.executable,
                 str(worker_path),
-                "--text",
-                text,
                 "--voice",
-                voice,
+                voice_str,
                 "--sample-rate",
                 str(self.sample_rate),
                 "--device",
-                self.device,
+                str(self.device),
             ]
-            # Проброс флага разрешения SAPI
-            if bool(self.config.get("tts.sapi_enabled", True)):
-                args += ["--sapi-enabled"]
-            if output_filename:
-                args += ["--output", output_filename]
 
-            # Увеличиваем timeout и улучшаем обработку ошибок
+            # Respect SAPI fallback flag
+            if bool(self.config.get("tts.sapi_enabled", False)):
+                args.append("--sapi-enabled")
+
+            # Ensure we have an output file to then play
+            temp_file_used = False
+            if not output_filename:
+                import time
+                tmp_dir = Path(tempfile.gettempdir())
+                output_filename = str(tmp_dir / f"arvis_silero_{int(time.time()*1000)}.wav")
+                temp_file_used = True
+            args += ["--output", str(output_filename)]
+
+            self.logger.debug(f"Running TTS worker (fallback): {' '.join(args[:3])} ...")
+
+            import subprocess
+
+            timeout_sec: int = 45
             try:
-                self.logger.debug(f"Running subprocess: {' '.join(args[:3])}...")
-                result = subprocess.run(
-                    args,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                )
+                t_cfg = self.config.get("tts.subprocess_timeout_sec", None)
+                if isinstance(t_cfg, (int, float, str)):
+                    timeout_sec = int(float(t_cfg))
+            except Exception:
+                pass
 
-                if result.returncode == 0:
-                    self.logger.info("TTS subprocess completed successfully")
-                    if result.stdout and result.stdout.strip():
-                        self.logger.info(f"TTS subprocess: {result.stdout.strip()}")
-                    return True
-                else:
-                    error_msg = result.stderr.strip() if result.stderr else "Unknown subprocess error"
-                    self.logger.error(f"TTS subprocess failed (code {result.returncode}): {error_msg}")
-                    return False
+            result = subprocess.run(
+                args,
+                input=text,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=timeout_sec,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
 
-            except subprocess.TimeoutExpired:
-                self.logger.error("TTS subprocess timed out after 30 seconds")
+            if result.returncode == 0:
+                if result.stdout and result.stdout.strip():
+                    self.logger.info(result.stdout.strip())
+                # If we created a temp file, play it
+                try:
+                    if output_filename and Path(output_filename).exists():
+                        data, sr = sf.read(output_filename, dtype='float32')
+                        try:
+                            sd.play(data, samplerate=sr)
+                            sd.wait()
+                        except Exception as pe:
+                            self.logger.error(f"Audio playback failed: {pe}")
+                finally:
+                    # Optionally remove temp file
+                    try:
+                        if temp_file_used and output_filename and Path(output_filename).exists():
+                            Path(output_filename).unlink()
+                    except Exception:
+                        pass
+                return True
+            else:
+                err = result.stderr.strip() if result.stderr else "unknown error"
+                self.logger.error(f"TTS worker failed (code {result.returncode}): {err}")
                 return False
 
+        except subprocess.TimeoutExpired:
+            self.logger.error("TTS worker timed out")
+            return False
         except Exception as e:
-            self.logger.error(f"Failed to run TTS subprocess: {e}")
+            self.logger.error(f"Failed in fallback synthesis: {e}")
             return False
 
     def save_to_file(self, text: str, filename: str, voice: Optional[str] = None) -> bool:
@@ -408,7 +445,7 @@ class SileroTTSEngine(TTSEngineBase):
 
             if audio is not None:
                 # Convert to numpy array if needed
-                if torch.is_tensor(audio):
+                if _torch is not None and hasattr(_torch, "is_tensor") and _torch.is_tensor(audio):
                     audio = audio.cpu().numpy()
 
                 # Save to file
@@ -445,3 +482,18 @@ class SileroTTSEngine(TTSEngineBase):
         else:
             self.logger.error(f"Voice {voice} not available")
             return False
+
+    def set_mode(self, mode: str):
+        """Set TTS mode: realtime, sentence_by_sentence, after_complete"""
+        if mode in ["realtime", "sentence_by_sentence", "after_complete"]:
+            self.tts_mode = mode
+            self.logger.info(f"TTS mode set to: {mode}")
+        else:
+            self.logger.warning(f"Unknown TTS mode: {mode}")
+
+    def set_enabled(self, enabled: bool):
+        """Enable or disable TTS"""
+        self.tts_enabled = enabled
+        if not enabled and self.is_speaking:
+            self.stop()
+        self.logger.info(f"TTS {'enabled' if enabled else 'disabled'}")

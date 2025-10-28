@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(1080, 720)
 
         # Remove default title bar and add custom one
-        self.setWindowFlags(Qt.FramelessWindowHint)  # type: ignore[attr-defined]
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)  # type: ignore[attr-defined]
         self.create_title_bar()
 
         # Center window
@@ -112,6 +112,12 @@ class MainWindow(QMainWindow):
         content_layout.setSpacing(0)
         content_layout.addWidget(self.chat_panel)
         content_layout.addWidget(self.status_panel)
+        
+        # Wire status panel to forward system messages into the chat feed
+        try:
+            self.status_panel.set_chat_panel(self.chat_panel)
+        except Exception as e:
+            self.logger.debug(f"Failed to attach ChatPanel to StatusPanel: {e}")
         central_widget.setLayout(content_layout)
 
         # Add content to main layout (give central area stretch to push bottom bar to the very bottom)
@@ -121,7 +127,7 @@ class MainWindow(QMainWindow):
         try:
             input_frame = self.chat_panel.get_input_frame()
             if input_frame is not None:
-                input_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                input_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
                 bottom_wrapper = QWidget()
                 bottom_layout = QHBoxLayout()
                 # Небольшие отступы ~5px от краёв окна (слева/справа и снизу)
@@ -286,7 +292,7 @@ class MainWindow(QMainWindow):
         # (будет добавлена в основной лэйаут рядом с title_bar)
         self.title_separator = QFrame()
         self.title_separator.setFixedHeight(1)
-        self.title_separator.setFrameShape(QFrame.NoFrame)
+        self.title_separator.setFrameShape(QFrame.Shape.NoFrame)
         self.title_separator.setStyleSheet("background-color: rgb(60, 60, 60); border: none;")
 
     def toggle_maximize(self):
@@ -304,14 +310,18 @@ class MainWindow(QMainWindow):
 
     def title_bar_mouse_press(self, event):
         """Handle title bar mouse press"""
-        if event.button() == Qt.LeftButton:  # type: ignore[attr-defined]
-            self.drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+        if event.button() == Qt.MouseButton.LeftButton:
+            # PyQt6: use globalPosition() which returns QPointF
+            global_pos = event.globalPosition().toPoint()
+            self.drag_pos = global_pos - self.frameGeometry().topLeft()
             event.accept()
 
     def title_bar_mouse_move(self, event):
         """Handle title bar mouse move"""
-        if event.buttons() == Qt.LeftButton and hasattr(self, "drag_pos"):  # type: ignore[attr-defined]
-            self.move(event.globalPos() - self.drag_pos)
+        if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, "drag_pos"):
+            # PyQt6: use globalPosition() which returns QPointF
+            global_pos = event.globalPosition().toPoint()
+            self.move(global_pos - self.drag_pos)
             event.accept()
 
     def init_arvis_core(self):
@@ -488,7 +498,7 @@ class MainWindow(QMainWindow):
                 login_dialog = EnhancedLoginDialog(self)
                 result = login_dialog.exec()
 
-                if result == QDialog.Accepted:
+                if result == QDialog.DialogCode.Accepted:
                     # Пользователь вошёл успешно
                     user_id, username, role = login_dialog.get_credentials()
                     self.handle_login_success(user_id, username, role)
@@ -648,7 +658,7 @@ class MainWindow(QMainWindow):
             login_dialog = EnhancedLoginDialog(self)
             result = login_dialog.exec()
 
-            if result == QDialog.Accepted:
+            if result == QDialog.DialogCode.Accepted:
                 user_id, username, role = login_dialog.get_credentials()
                 self.handle_login_success(user_id, username, role)
             else:
@@ -895,7 +905,8 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         result = self.settings_dialog.exec()
-        if result == self.settings_dialog.Accepted:
+        from PyQt6.QtWidgets import QDialog
+        if result == QDialog.DialogCode.Accepted:
             # Update TTS settings without full restart
             self.update_tts_settings()
             # Reload configuration and restart core if needed for other changes
@@ -1008,8 +1019,17 @@ class MainWindow(QMainWindow):
                 tts_mode = self.config.get("tts.mode", "realtime")
                 tts_enabled = self.config.get("tts.enabled", True)
 
-                self.arvis_core.tts_engine.set_mode(tts_mode)
-                self.arvis_core.tts_engine.set_enabled(tts_enabled)
+                # Apply to engine if supported
+                try:
+                    if hasattr(self.arvis_core.tts_engine, "set_mode"):
+                        self.arvis_core.tts_engine.set_mode(tts_mode)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    if hasattr(self.arvis_core.tts_engine, "set_enabled"):
+                        self.arvis_core.tts_engine.set_enabled(bool(tts_enabled))  # type: ignore[attr-defined]
+                except Exception:
+                    pass
 
                 self.logger.info(f"TTS settings updated: mode={tts_mode}, enabled={tts_enabled}")
 

@@ -58,7 +58,7 @@ class SettingsDialog(QDialog):
         self.setModal(True)
 
         # Remove default title bar and add custom one
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)  # type: ignore[attr-defined]
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
         self.create_title_bar()
 
         # Main layout
@@ -168,7 +168,13 @@ class SettingsDialog(QDialog):
                 painter.setPen(QPen(text_color))
                 # Небольшой отступ слева, чтобы текст не лип к краю
                 text_rect = target_rect.adjusted(16, 0, -10, 0)
-                painter.setRenderHint(QPainter.Antialiasing, True)
+                try:
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                except Exception:
+                    try:
+                        painter.setRenderHint(QPainter.Antialiasing, True)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())  # type: ignore[attr-defined]
 
             def resizeEvent(self, event):
@@ -262,7 +268,17 @@ class SettingsDialog(QDialog):
         first_btn = self._nav_group.button(0)
         if first_btn is not None:
             first_btn.setChecked(True)
-        self._nav_group.buttonClicked[int].connect(self.change_tab)
+        # PyQt6: use idClicked(int) instead of deprecated indexed signal syntax
+        try:
+            self._nav_group.idClicked.connect(self.change_tab)
+        except Exception:
+            # Fallback for environments exposing only buttonClicked with button parameter
+            try:
+                self._nav_group.buttonClicked.connect(
+                    lambda btn: self.change_tab(self._nav_group.id(btn))
+                )
+            except Exception:
+                pass
 
         # Apply dark theme
         self.setStyleSheet(
@@ -578,7 +594,7 @@ class SettingsDialog(QDialog):
         # Temperature
         temp_layout = QHBoxLayout()
         temp_layout.addWidget(QLabel("Температура:"))
-        self.temperature_slider = QSlider(Qt.Horizontal)  # type: ignore[attr-defined]
+        self.temperature_slider = QSlider(Qt.Orientation.Horizontal)
         self.temperature_slider.setMinimum(0)
         self.temperature_slider.setMaximum(200)
         self.temperature_slider.setValue(70)
@@ -629,23 +645,108 @@ class SettingsDialog(QDialog):
         tts_group = QGroupBox("Text-to-Speech")
         tts_layout = QVBoxLayout()
 
-        # TTS Engine (fixed to Silero)
+        # TTS Engine selector
         engine_layout = QHBoxLayout()
         engine_layout.addWidget(QLabel("Движок:"))
-        engine_label = QLabel("Silero TTS")
-        engine_layout.addWidget(engine_label)
+        self.tts_engine_combo = QComboBox()
+        try:
+            from modules.tts_factory import TTSFactory
+            available = set((TTSFactory.list_available_engines() or []))
+        except Exception:
+            available = {"silero"}
+        # Build engine entries with availability note
+        engine_items = [
+            ("silero", "Silero (русский, украинский)"),
+            ("bark", "Bark (EN, RU/UK мультиязык)" + (" — не установлен" if "bark" not in available else "")),
+        ]
+        for key, label in engine_items:
+            self.tts_engine_combo.addItem(label, key)
+        
+        # Add info button for Bark setup
+        bark_info_btn = QPushButton("?")
+        bark_info_btn.setMaximumWidth(30)
+        bark_info_btn.setToolTip("Информация об установке Bark")
+        def show_bark_info():
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self,
+                "Bark TTS Setup",
+                "Для установки Bark TTS запустите:\n\n"
+                "  pip install bark-ml\n\n"
+                "Bark поддерживает:\n"
+                "• Английский (англоязычные голоса - родные)\n"
+                "• Русский (мультиязычные голоса)\n"
+                "• Украинский (мультиязычные голоса)\n\n"
+                "Примечание: Bark требует больше ресурсов, чем Silero."
+            )
+        bark_info_btn.clicked.connect(show_bark_info)
+        
+        engine_layout.addWidget(self.tts_engine_combo)
+        engine_layout.addWidget(bark_info_btn)
         engine_layout.addStretch()
         tts_layout.addLayout(engine_layout)
 
-        # Voice selection
+        # Voice selection (tagged by engine)
         voice_layout = QHBoxLayout()
         voice_layout.addWidget(QLabel("Голос:"))
         self.voice_combo = QComboBox()
-        self.voice_combo.addItems(
-            ["ru_v3 (Мужской)", "aidar (Мужской)", "baya (Женский)", "kseniya (Женский)", "xenia (Женский)"]
-        )
         voice_layout.addWidget(self.voice_combo)
         tts_layout.addLayout(voice_layout)
+
+        # Predefine voices per engine with labels containing tags
+        self._tts_voices_map = {
+            "silero": [
+                ("ru_v3", "[Silero] ru_v3 — профиль по умолчанию"),
+                ("aidar", "[Silero] aidar — мужской"),
+                ("eugene", "[Silero] eugene — мужской"),
+                ("baya", "[Silero] baya — женский"),
+                ("kseniya", "[Silero] kseniya — женский"),
+                ("xenia", "[Silero] xenia — женский"),
+            ],
+            "bark": [
+                # English speakers (Bark native)
+                ("v2/en_speaker_0", "[Bark] en_speaker_0 — English (male)"),
+                ("v2/en_speaker_1", "[Bark] en_speaker_1 — English (female)"),
+                ("v2/en_speaker_2", "[Bark] en_speaker_2 — English (male)"),
+                ("v2/en_speaker_3", "[Bark] en_speaker_3 — English (female)"),
+                ("v2/en_speaker_4", "[Bark] en_speaker_4 — English (male)"),
+                ("v2/en_speaker_5", "[Bark] en_speaker_5 — English (female)"),
+                ("v2/en_speaker_6", "[Bark] en_speaker_6 — English (male)"),
+                ("v2/en_speaker_7", "[Bark] en_speaker_7 — English (female)"),
+                ("v2/en_speaker_8", "[Bark] en_speaker_8 — English (male)"),
+                ("v2/en_speaker_9", "[Bark] en_speaker_9 — English (female)"),
+                # Multilingual voices (experimental)
+                ("v2/multilingual_00", "[Bark] multilingual_00 — мультиязык (RU/UK/EN)"),
+                ("v2/multilingual_01", "[Bark] multilingual_01 — мультиязык (RU/UK/EN)"),
+            ],
+        }
+
+        # Helper to repopulate voices according to selected engine
+        def repopulate_voices_for_engine(engine_key: str):
+            self.voice_combo.clear()
+            items = self._tts_voices_map.get(engine_key, [])
+            for val, label in items:
+                self.voice_combo.addItem(label, val)
+            # Select from config if available
+            if engine_key == "silero":
+                current = str(self.config.get("tts.voice", "ru_v3") or "ru_v3")
+            else:
+                current = str(self.config.get("tts.bark.voice", "v2/en_speaker_0") or "v2/en_speaker_0")
+            idx = next((i for i in range(self.voice_combo.count()) if self.voice_combo.itemData(i) == current), -1)
+            if idx >= 0:
+                self.voice_combo.setCurrentIndex(idx)
+
+        # Set current engine from config and populate voices
+        current_engine = str(self.config.get("tts.default_engine", "silero") or "silero").lower()
+        idx_engine = next((i for i in range(self.tts_engine_combo.count()) if self.tts_engine_combo.itemData(i) == current_engine), 0)
+        self.tts_engine_combo.setCurrentIndex(idx_engine)
+        repopulate_voices_for_engine(current_engine)
+
+        # React to engine change
+        def on_engine_changed(_index: int):
+            eng = str(self.tts_engine_combo.currentData() or "silero")
+            repopulate_voices_for_engine(eng)
+        self.tts_engine_combo.currentIndexChanged.connect(on_engine_changed)
 
         # Sample rate
         rate_layout = QHBoxLayout()
@@ -850,7 +951,7 @@ class SettingsDialog(QDialog):
         weather_layout = QHBoxLayout()
         weather_layout.addWidget(QLabel("OpenWeather:"))
         self.weather_api_edit = QLineEdit()
-        self.weather_api_edit.setEchoMode(QLineEdit.Password)
+        self.weather_api_edit.setEchoMode(QLineEdit.EchoMode.Password)
         weather_layout.addWidget(self.weather_api_edit)
         api_layout.addLayout(weather_layout)
 
@@ -858,7 +959,7 @@ class SettingsDialog(QDialog):
         news_layout = QHBoxLayout()
         news_layout.addWidget(QLabel("NewsAPI:"))
         self.news_api_edit = QLineEdit()
-        self.news_api_edit.setEchoMode(QLineEdit.Password)
+        self.news_api_edit.setEchoMode(QLineEdit.EchoMode.Password)
         news_layout.addWidget(self.news_api_edit)
         api_layout.addLayout(news_layout)
 
@@ -866,7 +967,7 @@ class SettingsDialog(QDialog):
         search_api_layout = QHBoxLayout()
         search_api_layout.addWidget(QLabel("Google Search API:"))
         self.search_api_edit = QLineEdit()
-        self.search_api_edit.setEchoMode(QLineEdit.Password)
+        self.search_api_edit.setEchoMode(QLineEdit.EchoMode.Password)
         search_api_layout.addWidget(self.search_api_edit)
         api_layout.addLayout(search_api_layout)
 
@@ -907,8 +1008,16 @@ class SettingsDialog(QDialog):
         return tab
 
     def create_advanced_tab(self):
-        """Create advanced settings tab"""
+        """Create advanced settings tab (with scrollable content)"""
+        from PyQt6.QtWidgets import QScrollArea
+
         tab = QWidget()
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # Inner widget with actual content
+        content = QWidget()
         layout = QVBoxLayout()
 
         # Auto-Update group (новая секция)
@@ -1035,7 +1144,23 @@ class SettingsDialog(QDialog):
         layout.addWidget(log_mgmt_group)
         layout.addStretch()
 
-        tab.setLayout(layout)
+        content.setLayout(layout)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content)
+        # Match scrollbar styling with main chat scroll
+        scroll.setStyleSheet(
+            """
+            QScrollArea { border: none; background-color: transparent; }
+            QScrollBar:vertical { background-color: rgba(255,255,255,0.1); width: 8px; border-radius: 4px; }
+            QScrollBar::handle:vertical { background-color: rgba(255,255,255,0.3); border-radius: 4px; min-height: 20px; }
+            QScrollBar::handle:vertical:hover { background-color: rgba(255,255,255,0.5); }
+            """
+        )
+
+        outer_layout.addWidget(scroll)
+        tab.setLayout(outer_layout)
         return tab
     
     def check_for_updates(self):
@@ -1211,7 +1336,7 @@ class SettingsDialog(QDialog):
             from .change_password_dialog import ChangePasswordDialog
 
             dialog = ChangePasswordDialog(self.current_user_id, self)
-            if dialog.exec() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 QMessageBox.information(self, "Успех", "Пароль успешно изменён")
         except ImportError:
             QMessageBox.information(
@@ -1326,22 +1451,31 @@ class SettingsDialog(QDialog):
         # Load app autostart
         self.autostart_app.setChecked(bool(self.config.get("startup.autostart_app", False)))
         # Load TTS settings
-        voice = str(self.config.get("tts.voice", "aidar") or "aidar")
-        # Корректный поиск по ключу (префиксу до пробела)
+        # Выбираем движок и соответствующий ключ голоса, чтобы не подменять Bark голос Silero-значением
+        try:
+            current_engine = str(self.tts_engine_combo.currentData() or "silero").lower()
+        except Exception:
+            current_engine = "silero"
+        if current_engine == "bark":
+            voice_key = str(self.config.get("tts.bark.voice", "v2/en_speaker_0") or "v2/en_speaker_0")
+        else:
+            voice_key = str(self.config.get("tts.voice", "aidar") or "aidar")
+
+        # Ищем точное соответствие по itemData, а не по тексту
         selected_idx = -1
         for i in range(self.voice_combo.count()):
-            item_text = self.voice_combo.itemText(i)
-            item_key = item_text.split(" ")[0]
-            if item_key.lower() == voice.lower():
+            if self.voice_combo.itemData(i) == voice_key:
                 selected_idx = i
                 break
         if selected_idx >= 0:
             self.voice_combo.setCurrentIndex(selected_idx)
         else:
-            # Если не нашли — по умолчанию ставим aidar
-            fallback_idx = self.voice_combo.findText("aidar", Qt.MatchStartsWith)  # type: ignore[name-defined]
-            if fallback_idx != -1:
-                self.voice_combo.setCurrentIndex(fallback_idx)
+            # Фолбэк: для Silero пробуем aidar, для Bark — v2/en_speaker_0
+            fallback_key = "v2/en_speaker_0" if current_engine == "bark" else "aidar"
+            for i in range(self.voice_combo.count()):
+                if self.voice_combo.itemData(i) == fallback_key:
+                    self.voice_combo.setCurrentIndex(i)
+                    break
         rate = str(self.config.get("tts.sample_rate", 48000) or 48000)
         idxr = self.sample_rate_combo.findText(rate)
         if idxr != -1:
@@ -1377,7 +1511,7 @@ class SettingsDialog(QDialog):
 
         timeout_val = self.config.get("security.auth.session_timeout_minutes", 60)
         try:
-            timeout_int = int(timeout_val)
+            timeout_int = int(str(timeout_val))
         except Exception:
             timeout_int = 60
         self.session_timeout_spin.setValue(timeout_int)
@@ -1450,7 +1584,18 @@ class SettingsDialog(QDialog):
         # Extract raw voice key from combo text (before space if present)
         voice_text = self.voice_combo.currentText()
         voice_key = voice_text.split(" ")[0]
-        self.config.set("tts.voice", voice_key)
+        # Save selected engine and voice
+        try:
+            selected_engine = str(self.tts_engine_combo.currentData() or "silero")
+        except Exception:
+            selected_engine = "silero"
+        self.config.set("tts.default_engine", selected_engine)
+        # Voice key from item data (fallback to parsed text)
+        voice_key = self.voice_combo.currentData() or self.voice_combo.currentText().split(" ")[0]
+        if selected_engine == "silero":
+            self.config.set("tts.voice", str(voice_key))
+        else:
+            self.config.set("tts.bark.voice", str(voice_key))
         self.config.set("tts.sample_rate", int(self.sample_rate_combo.currentText()))
         self.config.set("tts.enabled", self.enable_tts_checkbox.isChecked())
         self.config.set("tts.sapi_enabled", self.sapi_checkbox.isChecked())
@@ -1531,6 +1676,13 @@ class SettingsDialog(QDialog):
         if hasattr(self, "auto_install_updates"):
             self.config.set("auto_update.auto_install", self.auto_install_updates.isChecked())
 
+        # Save config to disk
+        try:
+            self.config.save_config()
+        except Exception as e:
+            # В диалоге нет собственного логгера — выводим в консоль
+            print(f"Failed to save config: {e}")
+
         # Emit settings changed signal
         self.settings_changed.emit(self.config.config_data)
 
@@ -1585,11 +1737,11 @@ class SettingsDialog(QDialog):
             self,
             "Очистка логов",
             "Удалить все старые логи, кроме текущей сессии?\n\nЭто действие необратимо.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         try:

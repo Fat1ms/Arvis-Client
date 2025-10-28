@@ -8,25 +8,23 @@ echo      ARVIS AI ASSISTANT LAUNCH
 echo ========================================
 echo.
 
-REM Check virtual environment
-if not exist "venv\Scripts\activate.bat" (
-    echo ERROR: Virtual environment not found!
-    echo.
-    echo Run first: INSTALL.bat
-    echo.
-    pause
-    exit /b 1
+REM Check if venv exists, if yes - use it, if no - use system Python
+if exist "venv\Scripts\activate.bat" (
+    echo OK: Activating virtual environment...
+    call venv\Scripts\activate.bat
+) else (
+    echo OK: Using system Python (virtual environment not found)
 )
-
-echo OK: Activating environment...
-call venv\Scripts\activate.bat
 
 REM Check dependencies
 echo Checking dependencies...
 python -c "import PyQt6" 2>nul
 if %errorlevel% neq 0 (
     echo ERROR: PyQt6 not installed!
-    echo Run: INSTALL.bat
+    echo.
+    echo Please run: pip install -r requirements.txt
+    echo Or run: INSTALL.bat
+    echo.
     pause
     exit /b 1
 )
@@ -61,7 +59,8 @@ if %errorlevel% neq 0 (
     echo.
     echo ERROR: Arvis failed to start
     echo.
-    echo For diagnostics run: DIAGNOSTIC.bat
+    echo For diagnostics run: diagnose_setup.bat
+    echo Or check status: STATUS.bat
     echo Check logs in: logs\
     echo.
     pause

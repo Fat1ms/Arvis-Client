@@ -142,7 +142,13 @@ class HistoryMessageItem(QFrame):
         content = self.message_data.get("content", "")
         content_label = QLabel(content)
         content_label.setWordWrap(True)
-        content_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        # PyQt6 requires using the explicit TextInteractionFlag enum
+        # This enables text selection with the mouse in the history view
+        try:
+            content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        except Exception:
+            # Fallback for safety on older bindings
+            pass
         content_label.setStyleSheet(
             """
             QLabel {
@@ -205,7 +211,7 @@ class ChatHistoryDialog(QDialog):
         self.setFixedSize(800, 600)
 
         # Frameless window with custom title bar (matching main window style)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -586,10 +592,10 @@ class ChatHistoryDialog(QDialog):
             "Вы уверены, что хотите очистить всю историю?\n\nТекущая сессия будет архивирована в:\n{path}"
         ).format(path=archive_path)
         reply = QMessageBox.question(
-            self, _("Подтверждение"), confirm_text, QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            self, _("Подтверждение"), confirm_text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.history_manager.clear()
                 self.history_cleared.emit()

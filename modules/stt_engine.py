@@ -7,12 +7,31 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-import pyaudio
+try:
+    import pyaudio
+except ImportError:
+    pyaudio = None
+
 import vosk
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger
+
+# If pyaudio is not available, define fallback constants
+if pyaudio is None:
+    class PyAudioFallback:
+        """Minimal fallback shim to avoid attribute errors when PyAudio is missing."""
+        # Standard PCM format constant used by code
+        paInt16 = 2
+
+        class PyAudio:
+            def __init__(self, *args, **kwargs):
+                # Explicit error to be caught by initialization logic
+                raise RuntimeError("PyAudio is not installed. Please install pyaudio to enable microphone input.")
+
+    # Assign the class (module-like shim), not an instance, so attribute lookups work
+    pyaudio = PyAudioFallback
 
 
 class STTEngine(QObject):
@@ -92,6 +111,10 @@ class STTEngine(QObject):
 
     def _ensure_audio_interface(self):
         """Lazily initialize PyAudio interface if not yet created."""
+        if pyaudio is None or not hasattr(pyaudio, "PyAudio"):
+            self.logger.error("PyAudio not installed. Audio input will not work.")
+            return False
+            
         if self.audio_interface is None:
             try:
                 # Initialize PyAudio with error handling for Windows

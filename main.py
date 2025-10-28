@@ -162,7 +162,7 @@ class ArvisApp:
             login_dialog = EnhancedLoginDialog()
             result = login_dialog.exec()
 
-            if result == QDialog.Accepted:
+            if result == QDialog.DialogCode.Accepted:
                 user_id, username, role = login_dialog.get_credentials()
                 self.logger.info(f"Успешный вход: {username} (роль: {role})")
                 # Сохраняем данные пользователя для передачи в main_window

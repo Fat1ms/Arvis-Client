@@ -41,7 +41,7 @@ class ChangePasswordDialog(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)  # type: ignore[attr-defined]
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -69,7 +69,7 @@ class ChangePasswordDialog(QDialog):
         current_layout.addWidget(current_label)
 
         self.current_password_edit = QLineEdit()
-        self.current_password_edit.setEchoMode(QLineEdit.Password)
+        self.current_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.current_password_edit.setPlaceholderText("Введите текущий пароль")
         current_layout.addWidget(self.current_password_edit)
 
@@ -82,7 +82,7 @@ class ChangePasswordDialog(QDialog):
         new_layout.addWidget(new_label)
 
         self.new_password_edit = QLineEdit()
-        self.new_password_edit.setEchoMode(QLineEdit.Password)
+        self.new_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.new_password_edit.setPlaceholderText("Введите новый пароль")
         new_layout.addWidget(self.new_password_edit)
 
@@ -95,7 +95,7 @@ class ChangePasswordDialog(QDialog):
         confirm_layout.addWidget(confirm_label)
 
         self.confirm_password_edit = QLineEdit()
-        self.confirm_password_edit.setEchoMode(QLineEdit.Password)
+        self.confirm_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password_edit.setPlaceholderText("Подтвердите новый пароль")
         confirm_layout.addWidget(self.confirm_password_edit)
 

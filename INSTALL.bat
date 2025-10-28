@@ -75,12 +75,69 @@ python -m pip install --upgrade pip >nul 2>&1
 REM Install dependencies
 echo.
 echo [6/6] Installing dependencies (5-10 minutes)...
+echo    - Critical packages first...
+pip install --upgrade pip setuptools wheel >nul 2>&1
+
+echo    - PyQt6 GUI framework...
+pip install PyQt6==6.7.1 PyQt6-sip==13.8.0 --no-warn-script-location
+if %errorlevel% neq 0 (
+    echo ERROR: PyQt6 installation failed!
+    echo Try: 1) Update pip: python -m pip install --upgrade pip
+    echo      2) Install Visual C++ Redistributable
+    pause
+    exit /b 1
+)
+
+echo    - PyQt6 additional components...
+pip install PyQt6-Qt6 --no-warn-script-location 2>nul
+if %errorlevel% equ 0 (
+    echo OK: PyQt6-Qt6 installed
+) else (
+    echo WARNING: PyQt6-Qt6 skipped (optional)
+)
+
 echo    - Main packages...
 pip install -r requirements.txt --no-warn-script-location
 if %errorlevel% neq 0 (
-    echo WARNING: Some packages failed
-    echo Installing critical packages...
-    pip install PyQt6 requests vosk soundfile numpy torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+    echo WARNING: Some packages failed, installing critical ones individually...
+    
+    echo    - Installing core packages...
+    pip install requests soundfile numpy --no-warn-script-location
+    
+    echo    - Installing security packages...
+    pip install pyotp qrcode Pillow pyjwt cryptography python-dateutil python-dotenv --no-warn-script-location
+    echo OK: Security packages installed
+    
+    echo    - Installing system packages...
+    pip install psutil pywin32 --no-warn-script-location
+    
+    echo    - Installing PyTorch (CPU version)...
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location
+    
+    echo    - Installing TTS engines...
+    pip install pyttsx3 --no-warn-script-location
+    pip install bark-ml --no-warn-script-location 2>nul
+    
+    echo    - Installing Vosk (speech recognition)...
+    pip install vosk srt --no-warn-script-location 2>nul
+    if %errorlevel% neq 0 (
+        echo WARNING: Vosk not available for your Python version
+        echo          Speech recognition will be limited
+    ) else (
+        echo OK: Vosk installed successfully
+    )
+)
+
+echo    - Verifying PyTorch installation...
+python -c "import torch; print(torch.__version__)" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo       PyTorch not detected, installing CPU build from official index...
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location
+    if %errorlevel% neq 0 (
+        echo WARNING: Failed to install PyTorch automatically. Silero TTS will be unavailable until installed.
+    ) else (
+        echo OK: PyTorch installed (CPU)
+    )
 )
 
 echo    - PyAudio (may fail on Python 3.13)...
@@ -90,6 +147,20 @@ if %errorlevel% neq 0 (
 ) else (
     echo OK: PyAudio installed
 )
+
+echo.
+echo [7/7] Pre-loading TTS models (Silero, Bark)...
+echo    - Silero model (100-200MB)...
+python -c "import torch; torch.hub.load('snakers4/silero-models', 'silero_tts', language='ru', speaker='v3_1_ru', verbose=False)" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo WARNING: Silero model failed to load (will load on first use)
+) else (
+    echo OK: Silero preloaded
+)
+
+echo    - Bark model (optional, ~7GB - may take long time)...
+echo    Skipping Bark pre-load. Will load on first use with lazy loading.
+echo    To preload manually: python -c "import bark; bark.preload_models()"
 
 REM Create folders
 if not exist "logs" mkdir logs
@@ -103,6 +174,9 @@ echo        INSTALLATION COMPLETE!
 echo ========================================
 echo.
 echo OK: Arvis is ready to use
+echo.
+echo TTS Configuration:
+echo    Priority: Silero (fast) → Bark (quality) → SAPI (fallback)
 echo.
 echo NEXT STEPS:
 echo    1. Install Ollama: https://ollama.ai

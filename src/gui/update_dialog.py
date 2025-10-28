@@ -62,7 +62,7 @@ class UpdateNotificationDialog(QDialog):
         self.setWindowTitle("Доступно обновление")
         self.setFixedSize(500, 400)
         self.setModal(True)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -281,7 +281,7 @@ class UpdateDialog(QDialog):
         self.setModal(True)
 
         # Без стандартного заголовка
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)  # type: ignore[attr-defined]
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
 
         # Main layout
         main_layout = QVBoxLayout()
@@ -503,11 +503,11 @@ class UpdateDialog(QDialog):
             "Установить обновление?\n\n"
             "Приложение будет перезапущено после установки.\n"
             "Резервная копия текущей версии будет создана автоматически.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         # Отключаем кнопки

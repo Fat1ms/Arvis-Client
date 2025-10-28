@@ -106,7 +106,7 @@ class UserManagementDialog(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)  # type: ignore[attr-defined]
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -698,10 +698,10 @@ class UserManagementDialog(QDialog):
                 username, ok1 = QInputDialog.getText(self, _("Создать пользователя"), _("Имя пользователя:"))
                 if not ok1 or not username:
                     return
-                password, ok2 = QInputDialog.getText(self, _("Создать пользователя"), _("Пароль:"), QLineEdit.Password)
+                password, ok2 = QInputDialog.getText(self, _("Создать пользователя"), _("Пароль:"), QLineEdit.EchoMode.Password)
                 if not ok2 or not password:
                     return
-                confirm, ok3 = QInputDialog.getText(self, _("Создать пользователя"), _("Подтвердите пароль:"), QLineEdit.Password)
+                confirm, ok3 = QInputDialog.getText(self, _("Создать пользователя"), _("Подтвердите пароль:"), QLineEdit.EchoMode.Password)
                 if not ok3 or confirm != password:
                     QMessageBox.warning(self, _("Ошибка"), _("Пароли не совпадают"))
                     return
@@ -730,14 +730,14 @@ class UserManagementDialog(QDialog):
             _("Работа в автономном режиме"),
             _("Сервер недоступен.\n\nСоздать пользователя локально?\n"
               "(Не будет синхронизирован с сервером)"),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             from .login_dialog import CreateAccountDialog
             dialog = CreateAccountDialog(self)
-            if dialog.exec() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_users(); self.user_updated.emit()
 
     def edit_user_role(self, user):
@@ -842,11 +842,11 @@ class UserManagementDialog(QDialog):
             _(
                 "Вы уверены, что хотите деактивировать пользователя {username}?\n\nПользователь не сможет войти в систему."
             ).format(username=user.username),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Деактивация: на сервере и локально
                 user.is_active = False
@@ -970,11 +970,11 @@ class UserManagementDialog(QDialog):
             _("Вы уверены, что хотите УДАЛИТЬ пользователя {username}?\n\nЭто действие необратимо!").format(
                 username=user.username
             ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Удаление пользователя
                 server_deleted = False
@@ -1033,7 +1033,7 @@ class UserManagementDialog(QDialog):
             self,
             _("Сброс пароля"),
             _("Введите новый пароль для {username}:").format(username=user.username),
-            QLineEdit.Password,
+            QLineEdit.EchoMode.Password,
         )
 
         if ok and new_password:
@@ -1093,7 +1093,7 @@ class UserManagementDialog(QDialog):
             # Show 2FA setup dialog
             dialog = TwoFactorSetupDialog(self, user.username)
 
-            if dialog.exec() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 # Get encrypted secret and hashed backup codes
                 encrypted_secret = dialog.get_encrypted_secret()
                 hashed_codes = dialog.get_hashed_backup_codes()
@@ -1144,11 +1144,11 @@ class UserManagementDialog(QDialog):
                 "Вы уверены, что хотите отключить двухфакторную аутентификацию для пользователя {username}?\n\n"
                 "Это действие удалит все данные 2FA (секрет и резервные коды)."
             ).format(username=user.username),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 storage = UserStorage()
 
@@ -1195,11 +1195,11 @@ class UserManagementDialog(QDialog):
                 "• Потребует новую настройку от пользователя\n\n"
                 "Используйте это, если пользователь потерял доступ к приложению аутентификации."
             ).format(username=user.username),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 storage = UserStorage()
 

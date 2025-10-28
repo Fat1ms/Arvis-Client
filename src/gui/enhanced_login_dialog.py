@@ -55,7 +55,7 @@ class EnhancedLoginDialog(QDialog):
             # PyQt6-style flags if available
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
         except Exception:
-            self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)  # type: ignore[attr-defined]
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # type: ignore[attr-defined]
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -143,7 +143,7 @@ class EnhancedLoginDialog(QDialog):
         password_label = QLabel(_("Пароль:"))
         password_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); background: transparent;")
         self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText(_("Введите пароль"))
         self.password_input.returnPressed.connect(self.handle_user_login)
         password_layout.addWidget(password_label)
@@ -415,7 +415,7 @@ class EnhancedLoginDialog(QDialog):
                         from src.gui.two_factor_verification_dialog import TwoFactorVerificationDialog
                         storage = UserStorage()
                         verify_dialog = TwoFactorVerificationDialog(self, user, storage)
-                        if verify_dialog.exec() == QDialog.Accepted:
+                        if verify_dialog.exec() == QDialog.DialogCode.Accepted:
                             self._complete_login(user, session.session_id)
                         else:
                             self.password_input.clear(); self.password_input.setFocus()
@@ -460,11 +460,11 @@ class EnhancedLoginDialog(QDialog):
                     "• История не сохраняется\n"
                     "• Нет доступа к системным функциям"
                 ),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
 
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 self.logger.info("Guest mode login selected")
                 self.selected_user_id = "guest"
                 self.selected_username = "Guest"
@@ -490,7 +490,7 @@ class EnhancedLoginDialog(QDialog):
             from src.gui.login_dialog import CreateAccountDialog
 
             dialog = CreateAccountDialog(self)
-            if dialog.exec() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 # Account created, try to login
                 user_id, username = dialog.get_credentials()
                 if user_id:

@@ -106,3 +106,19 @@ class TTSEngineBase(ABC):
             message=f"TTS engine status: {self.status.value}",
             details=self.get_status()
         )
+
+    def set_mode(self, mode: str) -> None:
+        """Set TTS mode (optional, override in subclasses)
+        
+        Args:
+            mode: Mode name
+        """
+        pass
+
+    def set_enabled(self, enabled: bool) -> None:
+        """Enable/disable TTS (optional, override in subclasses)
+        
+        Args:
+            enabled: True to enable, False to disable
+        """
+        pass

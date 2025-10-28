@@ -13,10 +13,12 @@ Desktop voice assistant with offline STT/TTS, LLM integration, and comprehensive
 
 ## Documentation
 
-- [Installation Guide](INSTALLATION_HELP.md)
-- [User Management Guide](docs/USER_MANAGEMENT_GUIDE.md)
-- [Security Guide](docs/RBAC_GUIDE.md)
-- [2FA Setup](docs/USER_GUIDE_2FA.md)
+📖 **[Полный индекс документации](docs/INDEX.md)**
+
+Быстрые ссылки:
+- [User Management Guide](docs/user-guide/USER_MANAGEMENT_GUIDE.md)
+- [2FA Setup](docs/user-guide/USER_GUIDE_2FA.md)
+- [Technical Architecture](docs/technical/HYBRID_ARCHITECTURE_DESIGN.md)
 
 ## Repository Structure
 
@@ -46,6 +48,20 @@ To connect to remote authentication server:
 }
 
 2. Server repository: https://github.com/Fat1ms/Arvis-Server
+
+## Testing
+
+### TTS Models Test
+Проверка работы всех TTS движков (Silero, Bark, SAPI):
+```bash
+tests\run_tts_tests.bat
+```
+
+### System Status
+Проверка статуса системы:
+```bash
+STATUS.bat
+```
 
 ## License
 

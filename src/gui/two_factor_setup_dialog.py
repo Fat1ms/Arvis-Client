@@ -50,7 +50,7 @@ class TwoFactorSetupDialog(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)

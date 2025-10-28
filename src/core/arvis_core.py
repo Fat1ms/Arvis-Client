@@ -206,6 +206,14 @@ class ArvisCore(QObject):
                     # Create engine with fallback
                     self.tts_engine = self._create_tts_engine_with_fallback(engine_type)
                     self.logger.info(f"TTS engine initialized: {self._tts_engine_type}")
+                    # Явно предупреждаем, если произошёл фолбэк с выбранного движка
+                    try:
+                        if str(self._tts_engine_type).lower() != str(engine_type).lower():
+                            self.logger.warning(
+                                f"Requested TTS engine '{engine_type}' not used — fell back to '{self._tts_engine_type}'."
+                            )
+                    except Exception:
+                        pass
                 except Exception as e:
                     self.logger.error(f"Failed to initialize TTS engine: {e}")
                     # Fallback to basic TTSEngine if factory fails
@@ -1876,8 +1884,12 @@ class ArvisCore(QObject):
         # Primary engine from config
         primary = self.config.get("tts.default_engine", "silero")
         
-        # Others as fallback
+        # Others as fallback, but prefer bark over silero due to model download issues
         others = [e for e in self._available_tts_engines if e != primary]
+        # Reorder: Bark first if available (faster, no large model download)
+        if "bark" in others:
+            others.remove("bark")
+            others.insert(0, "bark")
         
         # Build priority list
         self._tts_engine_priority = [primary] + others
@@ -1895,15 +1907,20 @@ class ArvisCore(QObject):
         Raises:
             RuntimeError: If all engines fail to initialize
         """
-        # Try primary first, then fallback list
-        engines_to_try = [engine_type] + self._tts_engine_priority
+        # Try primary first, then fallback list (deduplicated)
+        engines_to_try = []
+        seen = set()
+        for e in [engine_type] + self._tts_engine_priority:
+            if e not in seen:
+                seen.add(e)
+                engines_to_try.append(e)
         
         for engine in engines_to_try:
             try:
                 self.logger.info(f"Attempting to create {engine} TTS engine...")
                 
                 # Create engine via factory
-                engine_obj = self._tts_factory.create_engine(engine, self.config)
+                engine_obj = self._tts_factory.create_engine(engine, self.config, self.logger)
                 
                 # Run health check
                 try:
@@ -1955,7 +1972,7 @@ class ArvisCore(QObject):
                 self.logger.warning(f"Failed to stop current engine: {stop_error}")
             
             # Create new engine
-            new_engine = self._tts_factory.create_engine(new_engine_type, self.config)
+            new_engine = self._tts_factory.create_engine(new_engine_type, self.config, self.logger)
             
             # Run health check
             try:

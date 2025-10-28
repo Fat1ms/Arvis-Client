@@ -6,12 +6,22 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import pyaudio
+try:
+    import pyaudio
+except ImportError:
+    pyaudio = None
+
 import vosk
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from config.config import Config
 from utils.logger import ModuleLogger
+
+# If pyaudio is not available, define fallback constants
+if pyaudio is None:
+    class PyAudioFallback:
+        paInt16 = 2  # Standard PCM format constant
+    pyaudio = PyAudioFallback()
 
 
 def _safe_float(value, default: float) -> float:

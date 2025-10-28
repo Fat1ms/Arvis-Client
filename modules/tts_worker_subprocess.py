@@ -5,13 +5,20 @@ This isolates Silero's 'src' imports from the main app's packages.
 
 import argparse
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import contextlib
+import io
+import shutil
+import warnings
+import re
 
-def ensure_silero_paths():
+import soundfile as sf
+
+
+def ensure_silero_paths() -> None:
     """Adjust sys.path to prefer Silero repo paths over project paths."""
     # Remove current working directory and project src from sys.path to avoid 'src' name clash
     cwd = os.path.abspath(os.getcwd())
@@ -25,7 +32,6 @@ def ensure_silero_paths():
         sys.path.insert(0, str(repo_root))
         sys.path.insert(0, str(repo_src))
 
-
 def map_voice(voice: str) -> str:
     # Provide a safe default mapping if a generic voice is passed
     if not voice:
@@ -35,73 +41,138 @@ def map_voice(voice: str) -> str:
         return "aidar"
     return voice
 
+def preprocess_text(text: str) -> str:
+    """Clean and normalize input text for Silero to avoid ValueError from tokenizer.
 
-def _play_via_winsound_fallback(audio, sample_rate: int):
-    """На Windows сохраняем WAV во временный файл и проигрываем через winsound."""
+    - Trim whitespace
+    - Remove/replace unsupported characters
+    - Collapse whitespace
+    - Ensure sentence-ending punctuation
+    - Limit overly long inputs to a safe length
+    """
+    if text is None:
+        return ""
+    t = text.strip()
+    if not t:
+        return ""
+    # Replace unsupported chars with space; allow russian/latin letters, digits and common punctuation
+    t = re.sub(r"[^0-9A-Za-zА-Яа-яёЁ ,.!?;:\-()\"'–—]", " ", t)
+    # Normalize dashes
+    t = t.replace("–", "-").replace("—", "-")
+    # Collapse whitespace
+    t = re.sub(r"\s+", " ", t)
+    t = t.strip()
+    # Ensure it ends with punctuation to mark sentence end
+    if t and t[-1] not in ".!?":
+        t += "."
+    # Limit length to avoid extreme inputs
+    if len(t) > 5000:
+        t = t[:5000]
+    return t
+
+def synth_and_play(
+    text: str,
+    voice: str,
+    sample_rate: int,
+    device: str,
+    output: str | None,
+    sapi_enabled: bool = True,
+) -> None:
+    print("[TTS-WORKER] Starting synth_and_play...", file=sys.stderr)
+
+    # Optional torch import to avoid DLL crashes
     try:
-        import tempfile
-        import winsound
-
-        import numpy as np
-        import soundfile as sf
-
-        # Конвертируем в int16 для совместимости с winsound
-        if hasattr(audio, "dtype") and str(audio.dtype) != "int16":
-            # Нормализуем float32 -> int16
-            data = (audio * 32767.0).astype("int16")
-        else:
-            data = audio
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            tmp_path = tmp.name
-        # Сохраняем WAV (PCM_16)
-        sf.write(tmp_path, data, samplerate=sample_rate, subtype="PCM_16")
-        winsound.PlaySound(tmp_path, winsound.SND_FILENAME)
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-        print("Audio playback completed (winsound fallback)")
-        return True
-    except Exception as we:
-        print(f"[TTS-WORKER-ERROR] winsound fallback failed: {we}", file=sys.stderr)
-        return False
-
-
-def synth_and_play(text: str, voice: str, sample_rate: int, device: str, output: str | None, sapi_enabled: bool = True):
-    import warnings
-
-    import sounddevice as sd
-    import soundfile as sf
-    import torch
+        print("[TTS-WORKER] Importing torch...", file=sys.stderr)
+        import torch as _torch  # type: ignore
+        _torch_err = None
+        print("[TTS-WORKER] torch imported successfully.", file=sys.stderr)
+    except BaseException as _e:
+        _torch = None  # type: ignore
+        _torch_err = _e
+        print(f"[TTS-WORKER-ERROR] torch import failed: {_e}", file=sys.stderr)
 
     # Подавляем предупреждения PyTorch для чистого вывода
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     # Make sure silero repo is importable
+    print("[TTS-WORKER] Ensuring Silero paths...", file=sys.stderr)
     ensure_silero_paths()
 
-    try:
-        # Устанавливаем переменные окружения для подавления лишнего вывода
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    # Устанавливаем переменные окружения для подавления лишнего вывода
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-        # Load model via torch.hub (will use cache when available)
-        # Перенаправляем stdout во время загрузки модели
-        import contextlib
-        import io
+    # torch обязателен для Silero
+    if _torch is None:
+        raise RuntimeError(f"PyTorch not available: {_torch_err}")
 
-        f = io.StringIO()
-        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-            loaded = torch.hub.load(
+    def _clear_silero_cache(torch_mod: Any) -> None:
+        """Удаляем поврежденный кеш Silero из torch.hub (репо и возможные .pt чекпоинты)."""
+        try:
+            try:
+                hub_dir = Path(torch_mod.hub.get_dir())  # type: ignore[attr-defined]
+            except Exception:
+                hub_dir = Path.home() / ".cache" / "torch" / "hub"
+
+            targets: list[Path] = []
+            repo_dir = hub_dir / "snakers4_silero-models_master"
+            targets.append(repo_dir)
+            checkpoints = hub_dir / "checkpoints"
+            if checkpoints.exists():
+                for p in checkpoints.glob("*.pt"):
+                    name = p.name.lower()
+                    if "silero" in name or "v3" in name or "ru" in name:
+                        targets.append(p)
+            for t in targets:
+                if t.exists():
+                    if t.is_dir():
+                        shutil.rmtree(t, ignore_errors=True)
+                        print(f"[TTS-WORKER] Cleared dir: {t}", file=sys.stderr)
+                    else:
+                        try:
+                            t.unlink(missing_ok=True)
+                        except TypeError:
+                            # Python <3.8 fallback
+                            try:
+                                t.unlink()
+                            except Exception:
+                                pass
+                        print(f"[TTS-WORKER] Removed file: {t}", file=sys.stderr)
+        except Exception as clr_err:
+            print(f"[TTS-WORKER-WARN] Failed to clear silero cache: {clr_err}", file=sys.stderr)
+
+    def _load_model() -> Any:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            loaded = _torch.hub.load(  # type: ignore[attr-defined]
                 repo_or_dir="snakers4/silero-models",
                 model="silero_tts",
                 language="ru",
                 speaker="v3_1_ru",
                 verbose=False,
             )
-            # В некоторых версиях возможен кортеж (model, example_text, ...)
-            model = loaded[0] if isinstance(loaded, (tuple, list)) else loaded
+        return loaded[0] if isinstance(loaded, (tuple, list)) else loaded
+
+    try:
+        print("[TTS-WORKER] Starting synthesis...", file=sys.stderr)
+        print("[TTS-WORKER] Loading Silero model...", file=sys.stderr)
+        try:
+            model = _load_model()
+        except Exception as load_err:
+            msg = str(load_err)
+            if (
+                "PytorchStreamReader failed" in msg
+                or "failed finding central directory" in msg
+                or "zip archive" in msg
+            ):
+                print("[TTS-WORKER] Detected corrupted Silero cache, clearing and retrying...", file=sys.stderr)
+                _clear_silero_cache(_torch)
+                model = _load_model()
+            else:
+                raise
+
+        print("[TTS-WORKER] Silero model loaded.", file=sys.stderr)
+        print("[TTS-WORKER] Model loaded, preparing...", file=sys.stderr)
 
         # Безопасно выбираем устройство: если cuda недоступна, откатываемся на cpu
         target_device = device
@@ -109,75 +180,124 @@ def synth_and_play(text: str, voice: str, sample_rate: int, device: str, output:
             if (
                 isinstance(target_device, str)
                 and target_device.lower().startswith("cuda")
-                and not torch.cuda.is_available()
+                and not _torch.cuda.is_available()
             ):
                 target_device = "cpu"
         except Exception:
             target_device = "cpu"
 
+        print(f"[TTS-WORKER] Moving model to device: {target_device}", file=sys.stderr)
         model_any: Any = model
         model_any.to(target_device)
-        voice = map_voice(voice)
+        print("[TTS-WORKER] Model moved to device.", file=sys.stderr)
 
-        # Генерируем аудио с подавлением вывода
-        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-            audio = model_any.apply_tts(text=text, speaker=voice, sample_rate=sample_rate)
+        voice_mapped = map_voice(voice)
+        print(f"[TTS-WORKER] Generating audio with voice '{voice_mapped}'...", file=sys.stderr)
+        # Preprocess text to avoid Silero ValueError on unexpected symbols or empty input
+        clean_text = preprocess_text(text)
+        if not clean_text:
+            raise ValueError("Empty or invalid text after preprocessing")
+        print(f"[TTS-WORKER] Clean text: {clean_text}", file=sys.stderr)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                audio = model_any.apply_tts(
+                    text=clean_text,
+                    speaker=voice_mapped,
+                    sample_rate=sample_rate,
+                    put_accent=True,
+                    put_yo=True,
+                )
+        except ValueError:
+            # Retry with a minimal safe sample to verify pipeline
+            retry_text = "Привет."
+            print("[TTS-WORKER-WARN] ValueError for input text; retrying with a safe sample...", file=sys.stderr)
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                audio = model_any.apply_tts(
+                    text=retry_text,
+                    speaker=voice_mapped,
+                    sample_rate=sample_rate,
+                    put_accent=True,
+                    put_yo=True,
+                )
+        print("[TTS-WORKER] Audio generated.", file=sys.stderr)
 
+        print("[TTS-WORKER] Audio generated, saving...", file=sys.stderr)
         # Convert to numpy array
-        if torch.is_tensor(audio):
+        if hasattr(_torch, "is_tensor") and _torch.is_tensor(audio):
             audio = audio.cpu().numpy()
 
         if output:
+            print(f"[TTS-WORKER] Writing to output file: {output}", file=sys.stderr)
             sf.write(output, audio, sample_rate)
             print(f"Audio saved to: {output}")
+            print("[TTS-WORKER] Finished writing to output file.", file=sys.stderr)
         else:
-            try:
-                sd.play(audio, samplerate=sample_rate)
-                sd.wait()
-                print("Audio playback completed")
-            except Exception as pe:
-                # Частые причины на Windows: unsupported sample rate / WASAPI ошибки.
-                # Пытаемся безопасно воспроизвести через winsound.
-                if os.name == "nt":
-                    ok = _play_via_winsound_fallback(audio, sample_rate)
-                    if not ok:
-                        raise pe
-                else:
-                    raise pe
+            print("[TTS-WORKER-WARN] No output file specified; audio not saved", file=sys.stderr)
+
+        print("[TTS-WORKER] Synthesis complete", file=sys.stderr)
 
     except Exception as e:
+        print(f"[TTS-WORKER-ERROR] Exception during synthesis: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+
         # Очищаем CUDA кэш если возможно
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        # Если Silero недоступен (например, нет интернета для hub.load),
-        # на Windows используем системный SAPI как запасной вариант.
-        if os.name == "nt" and sapi_enabled:
+        try:
+            if _torch is not None and _torch.cuda.is_available():
+                _torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+        # Если Silero недоступен, на Windows используем системный SAPI как запасной вариант.
+        if os.name == "nt" and sapi_enabled and output:
             try:
                 import win32com.client as wincl
-
                 speak = wincl.Dispatch("SAPI.SpVoice")
                 speak.Speak(text)
-                print("Audio playback completed (SAPI fallback)")
+                print("Audio generated (SAPI fallback)")
                 return
             except Exception as sapi_err:
                 print(f"[TTS-WORKER-ERROR] SAPI fallback failed: {sapi_err}", file=sys.stderr)
-        raise e
+        raise
 
 
-def main():
+def _read_text_from_stdin() -> str:
+    """Read text from stdin with robust Windows encoding fallbacks (UTF-8, CP1251, CP866)."""
+    try:
+        data = sys.stdin.buffer.read()
+    except Exception:
+        # Fallback if buffer not available
+        return sys.stdin.read()
+    for enc in ("utf-8", "cp65001", "utf-16le", "cp1251", "cp866"):
+        try:
+            s = data.decode(enc)
+            if s:
+                return s
+        except Exception:
+            continue
+    # Last resort: ignore errors
+    try:
+        return data.decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description="Arvis Silero TTS worker (subprocess)")
-    parser.add_argument("--text", required=True, help="Text to speak")
     parser.add_argument("--voice", default="aidar")
     parser.add_argument("--sample-rate", type=int, default=48000)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--output", default=None, help="Optional path to save WAV instead of playing")
     parser.add_argument("--sapi-enabled", action="store_true", help="Allow SAPI fallback on Windows")
+    parser.add_argument("--text", default=None, help="Optional text to synthesize (otherwise read from stdin)")
 
     args = parser.parse_args()
 
     try:
+        text_to_speak = args.text if args.text is not None else _read_text_from_stdin()
         synth_and_play(
-            text=args.text,
+            text=text_to_speak,
             voice=args.voice,
             sample_rate=args.sample_rate,
             device=args.device,
@@ -191,3 +311,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -96,7 +96,7 @@ class SplashScreen(QWidget):
 
     def init_ui(self):
         """Initialize UI components"""
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         # Убираем прозрачный фон, который может вызывать проблемы в Windows
         # self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(400, 400)  # Увеличиваем высоту с 300 до 400

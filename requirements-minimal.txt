@@ -1,0 +1,43 @@
+# Arvis AI Assistant - Minimal Dependencies (для проблемных установок)
+# Используйте этот файл если requirements.txt не работает
+
+# GUI Framework
+PyQt6==6.7.1
+PyQt6-sip==13.8.0
+
+# PyTorch (установить отдельно с --index-url)
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# TTS
+pyttsx3>=2.90
+
+# Audio
+soundfile==0.12.1
+sounddevice==0.4.6
+numpy<2
+
+# HTTP
+requests==2.31.0
+urllib3>=2.0.0
+certifi>=2023.0.0
+
+# Security
+pyotp>=2.9.0
+qrcode>=7.4.2
+Pillow>=10.0.0
+pyjwt>=2.8.0
+
+# System
+psutil==5.9.6
+pywin32>=306; sys_platform == "win32"
+python-dateutil==2.8.2
+python-dotenv==1.0.0
+
+# Utilities
+cryptography>=41.0.0
+omegaconf>=2.3.0
+
+# Опциональные (установить вручную если нужны):
+# vosk - для распознавания речи
+# bark-ml - для качественного TTS
+# srt - для субтитров

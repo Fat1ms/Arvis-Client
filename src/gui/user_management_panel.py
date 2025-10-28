@@ -50,7 +50,7 @@ class UserManagementPanel(QDialog):
         self.setModal(True)
 
         # Frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -439,11 +439,11 @@ class UserManagementPanel(QDialog):
                 _("Изменить роль пользователя '{username}' на '{role}'?").format(
                     username=user.username, role=new_role.value
                 ),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
 
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 user.role = new_role
                 self.storage.save_user(user)
                 self.logger.info(f"Changed role for user {user.username} to {new_role.value}")
@@ -478,11 +478,11 @@ class UserManagementPanel(QDialog):
                 _("Вы уверены, что хотите {action} пользователя '{username}'?").format(
                     action=action, username=user.username
                 ),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
 
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 user.is_active = not user.is_active
                 self.storage.save_user(user)
                 self.logger.info(f"User {user.username} {'activated' if user.is_active else 'deactivated'}")

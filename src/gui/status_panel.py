@@ -4,7 +4,7 @@ Status panel for Arvis application
 
 import math
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
@@ -165,7 +165,14 @@ class SvgButton(QPushButton):
         super().paintEvent(event)
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        except Exception:
+            # Fallback for environments where enum location differs
+            try:
+                painter.setRenderHint(QPainter.Antialiasing)  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
         # Choose SVG based on state
         svg_path = Path(self.svg_active if self.isDown() or self.underMouse() else self.svg_normal)
@@ -192,6 +199,7 @@ class StatusPanel(QWidget):
         self.orb_animation_in_progress = False  # Защита от множественных вызовов
         self._animation_connected = False  # Флаг подключения анимации
         self._stt_notification_shown = False
+        self._chat_panel: Optional[Any] = None  # ChatPanel reference for forwarding system messages
 
         # User info
         self.current_user_id = None
@@ -213,9 +221,13 @@ class StatusPanel(QWidget):
         # Заголовок с названием и версией убран
         # Кнопка управления орбом перенесена в ChatPanel
 
-        # User indicator (top section)
-        self.user_indicator = self._create_user_indicator()
-        layout.addWidget(self.user_indicator)
+        # User indicator (moved to Settings dialog by design)
+        # Keep widget for compatibility but do not add to layout
+        try:
+            self.user_indicator = self._create_user_indicator()
+            # Do not add to layout to avoid stretching when orb is hidden
+        except Exception:
+            self.user_indicator = None
 
         # Arvis orb (central status display) - initially hidden
         self.orb_frame = QFrame()
@@ -284,12 +296,12 @@ class StatusPanel(QWidget):
         # Initialize animation for orb - TV turn-on effect
         self.orb_animation = QPropertyAnimation(self.orb_frame, b"maximumHeight")
         self.orb_animation.setDuration(800)  # Медленнее для эффекта телевизора
-        self.orb_animation.setEasingCurve(QEasingCurve.OutElastic)  # Эластичный эффект как у старого ТВ
+        self.orb_animation.setEasingCurve(QEasingCurve.Type.OutElastic)  # Эластичный эффект как у старого ТВ
 
         # Дополнительная анимация для горизонтального расширения
         self.orb_width_animation = QPropertyAnimation(self.orb_frame, b"maximumWidth")
         self.orb_width_animation.setDuration(600)
-        self.orb_width_animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.orb_width_animation.setEasingCurve(QEasingCurve.Type.OutQuad)
 
         # Кнопки управления аудио перенесены в ChatPanel
 
@@ -297,7 +309,7 @@ class StatusPanel(QWidget):
 
         # Кнопка настроек перенесена в ChatPanel
 
-        # Notification area
+        # Notification area (removed from layout to declutter main UI)
         self.notifications_frame = QFrame()
         self.notifications_frame.setStyleSheet(
             """
@@ -308,7 +320,7 @@ class StatusPanel(QWidget):
             }
         """
         )
-        self.notifications_frame.hide()  # Скрыта по умолчанию
+        self.notifications_frame.hide()  # Hidden and not added to layout
 
         self.notifications_layout = QVBoxLayout()
         self.notifications_layout.setContentsMargins(10, 8, 10, 8)
@@ -316,7 +328,7 @@ class StatusPanel(QWidget):
 
         # Add all components to main layout - минимальная компоновка
         layout.addWidget(self.orb_frame, 1)  # Орб (скрыт по умолчанию, управляется из ChatPanel)
-        layout.addWidget(self.notifications_frame)  # Уведомления
+    # Notifications are not added to layout by design
 
         self.setLayout(layout)
 
@@ -441,30 +453,19 @@ class StatusPanel(QWidget):
     # Метод toggle_play_pause удален - теперь управление аудио в ChatPanel
 
     def add_system_message(self, message: str, timeout: int = 5000):
-        """Добавить системное уведомление в статус панель"""
-        # Создаем label для уведомления
-        notification_label = QLabel(message)
-        notification_label.setWordWrap(True)
-        notification_label.setStyleSheet(
-            """
-            QLabel {
-                color: rgba(255, 255, 255, 0.9);
-                font-size: 11px;
-                padding: 5px;
-                background-color: rgba(74, 158, 255, 0.2);
-                border-radius: 4px;
-                border: 1px solid rgba(74, 158, 255, 0.3);
-            }
+        """Forward system notifications to chat as inline messages.
+
+        For compatibility, if ChatPanel is not set, does nothing (no separate UI panel).
         """
-        )
+        try:
+            if self._chat_panel is not None and hasattr(self._chat_panel, "add_system_message"):
+                self._chat_panel.add_system_message(message)
+                return
+        except Exception:
+            pass
 
-        # Добавляем в layout уведомлений
-        self.notifications_layout.addWidget(notification_label)
-        self.notifications_frame.show()
-
-        # Автоматически скрываем уведомление через timeout
-        if timeout > 0:
-            QTimer.singleShot(timeout, lambda: self.remove_notification(notification_label))
+        # Fallback: no-op (notifications frame removed from main UI)
+        return
 
     def remove_notification(self, notification_label):
         """Удалить уведомление"""
@@ -605,6 +606,13 @@ class StatusPanel(QWidget):
         indicator_frame.hide()  # Hidden by default until login
         return indicator_frame
 
+    def set_chat_panel(self, chat_panel: Any) -> None:
+        """Attach ChatPanel to forward system messages to chat feed."""
+        try:
+            self._chat_panel = chat_panel
+        except Exception:
+            self._chat_panel = None
+
     def set_user_info(
         self,
         username: str,
@@ -667,8 +675,13 @@ class StatusPanel(QWidget):
 
             self.logout_button.show()
 
-        # Show indicator
-        self.user_indicator.show()
+        # Do not show indicator in main UI; moved to Settings
+        try:
+            ui = getattr(self, "user_indicator", None)
+            if ui is not None:
+                ui.hide()
+        except Exception:
+            pass
 
     def _open_user_management(self):
         """Open user management dialog"""
@@ -697,19 +710,24 @@ class StatusPanel(QWidget):
             self,
             _("Выход"),
             _("Вы уверены, что хотите выйти из системы?"),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Clear user info
                 self.current_user_id = None
                 self.current_username = None
                 self.current_role = None
 
-                # Hide indicator
-                self.user_indicator.hide()
+                # Hide indicator (if exists)
+                try:
+                    ui = getattr(self, "user_indicator", None)
+                    if ui is not None:
+                        ui.hide()
+                except Exception:
+                    pass
 
                 # Emit logout signal (will be caught by MainWindow)
                 if hasattr(self, "logout_requested"):
